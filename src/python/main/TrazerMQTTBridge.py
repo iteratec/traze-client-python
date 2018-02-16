@@ -14,6 +14,9 @@ from time import sleep
 # r: traze/{instanceName}/grid
 # r: traze/{instanceName}/players
 # r: traze/{instanceName}/ticker
+    
+def topic(*subTopics: str) -> str:
+	return "/".join(['traze', *subTopics])
 
 class TrazerMQTTBridge:
     def __init__(self, playerName, host='localhost'):
@@ -27,9 +30,6 @@ class TrazerMQTTBridge:
         self._client.connect(host, 1883, 60)
 
         self._client.loop_start()
-    
-    def topic(*subTopics) -> str:
-        return "/".join(['traze', *subTopics])
 
     # The callback for when the client receives a CONNACK response from the server.
     def on_connect(self, client, userdata, flags, rc):
@@ -91,16 +91,9 @@ class TrazerMQTTBridge:
         print("Welcome '%s' in game '%s'!\n" % (self._playerName, self._gameName))
         
     def bail(self):
-        self._client.publish(topic(self._gameName, self._player['id'], 'bail'))
+        self._client.publish(topic(self._gameName, str(self._player['id']), 'bail'))
         self._client.loop_stop()
+	
         self._gameName = ''
         self._games = {}
         self._player = {}
-
-
-bridge = TrazerMQTTBridge("HansWurst")
-
-gameName = list(bridge.games())[0];
-bridge.join(gameName)
-
-bridge.bail()
