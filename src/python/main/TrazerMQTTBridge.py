@@ -1,113 +1,117 @@
 import json
 import paho.mqtt.client as mqtt
-from time import sleep
 
-# r: traze/games
-# [ { \"name\": \"dummyGame\", \"activePlayers\": 5 } ] 
-# s: traze/{instanceName}/join
-# r: traze/{instanceName}/player/{playerName}
-# \"you\": { \"id\": 1337, \"name\": \"HansWurst\", \"secretUserToken\":\"secret\", \"position\": (15,3) }
-# s: traze/{instanceName}/{playerId}/steer
-# s: ...
-# s: traze/{instanceName}/{playerId}/bail
-#
-# r: traze/{instanceName}/grid
-# r: traze/{instanceName}/players
-# r: traze/{instanceName}/ticker
+from time import sleep
+from paho.mqtt.client import MQTTMessage
 
 # sent
 TOPIC_PLAYER_JOIN = 'traze/+/join'
 TOPIC_PLAYER_STEER = 'traze/+/+/steer'
 TOPIC_PLAYER_BAIL = 'traze/+/+/bail'
 
-# recieved
+# recieved 
 TOPIC_GAME_INFO = 'traze/games'
-TOPIC_PLAYER_INFO = 'traze/+/player/+'
 TOPIC_GRID = 'traze/+/grid'
 TOPIC_PLAYERS = 'traze/+/players'
 TOPIC_TICKER = 'traze/+/ticker'
+TOPIC_PLAYER_INFO = 'traze/+/player/+'
 
-def topic(topic: str, *args: str) -> str:
-    return topic.replace('+', '%s') % (args)
+class MqttTopic:
+    def __init__(self, client: mqtt.Client, name:str, *args: str):
+        self._name = name.replace('+', '%s') % (args)
+        self._message = None
+        self._lastMessage = None
+        self._client = client
 
-def isMyMessage(message, myTopic: str, *args: str) -> bool:
-    if (message.topic != topic(myTopic, *args)):
-        print("... ignoring %s\n" % (message.topic))
-        return False
-    return True
+    def subscribe(self):
+        def on_message(client, userdata, message: MQTTMessage):
+            self._message = message
+
+        self._client.subscribe(self._name)
+        self._client.message_callback_add(self._name, on_message)
+        return self
+
+    def unsubscribe(self):
+        self._client.message_callback_remove(self._name)
+        self._client.unsubscribe(self._name)
+        return self
+
+    def payload(self) -> object:
+        return json.loads(self.rawPayload())
+
+    def rawPayload(self) -> bytes:
+        while self._lastMessage == self._message:
+            sleep(1)
+        return self._message.payload
+
+    def publish(self, obj:object=None):
+        self._client.publish(self._name, json.dumps(obj))
     
-class TrazerMQTTBridge:
-    def __init__(self, playerName, host='localhost'):
+class TrazerMQTTBridge:    
+    def __init__(self, playerName, host='localhost', port=1883):
         self._playerName = playerName
-        self._gameName = ''
-        self._games = {}
         self._player = {}
         
         self._client = mqtt.Client()
         self._client.on_connect = self.on_connect
-        self._client.connect(host, 1883, 60)
+        self._client.connect(host, port, 60)
 
         self._client.loop_start()
 
     # The callback for when the client receives a CONNACK response from the server.
     def on_connect(self, client, userdata, flags, rc):
-        print("Connected with result code ", str(rc))
+        print("Connected MQTT broker.")
 
-        def on_games(client, userdata, message):
-            if (isMyMessage(message, TOPIC_GAME_INFO)):
-                gameData = json.loads(message.payload.decode('utf-8'))
-                print("update game data\n")
-                for game in gameData:
-                    self._games[game['name']] = game['activePlayers']
-
-        def on_grid(client, userdata, message):
-            if (isMyMessage(message, TOPIC_GRID, self._gameName)):
-                print("on_grid: %s\n" % (message.payload))
-
-        def on_players(client, userdata, message):
-            if (isMyMessage(message, TOPIC_PLAYERS, self._gameName)):
-                print("on_players: %s\n" % (message.payload))
-
-        def on_ticker(client, userdata, message):
-            if (isMyMessage(message, TOPIC_TICKER, self._gameName)):
-                print("on_ticker: %s\n" % (message.payload))
-
-        def on_player(client, userdata, message):
-            if (isMyMessage(message, TOPIC_PLAYER_INFO, self._gameName, self._playerName)):
-                playerData = json.loads('{' + message.payload.decode('utf-8') + '}')
-                self._player = playerData['you']
-                print("update player data\n")
-
-        # set callbacks for game handling  
-        client.subscribe('traze/#')
-        client.message_callback_add(TOPIC_PLAYER_INFO, on_player)
-        client.message_callback_add(TOPIC_GAME_INFO, on_games)
-        client.message_callback_add(TOPIC_GRID, on_grid)
-        client.message_callback_add(TOPIC_PLAYERS, on_players)
-        client.message_callback_add(TOPIC_TICKER, on_ticker)
+        self.topicGameInfo = MqttTopic(client, TOPIC_GAME_INFO).subscribe()
 
     def games(self):
-        while not self._games:
-            sleep(1)
-        return self._games
+        gameData = {} 
+        for game in self.topicGameInfo.payload():
+            gameData[game['name']] = game['activePlayers']
 
-    def join(self, gameName):
+        print("updated game data: %s\n" % (gameData))
+        return gameData
+
+    def join(self, gameName:str):
         if (gameName not in self.games()):
             print("Unknown game: '%s'!" % (gameName))
             return
-        self._gameName = gameName
         
-        playerData = json.dumps({ 'name' : self._playerName})
-        self._client.publish(topic(TOPIC_PLAYER_JOIN, self._gameName), playerData)
+        def topic(name:str, *args: str) -> MqttTopic:
+            return MqttTopic(self._client, name, gameName, *args)
+
+        # send join
+        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._playerName})
+
+        # register listeners for game
+        self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._playerName).subscribe()
+        self.topicGrid = topic(TOPIC_GRID).subscribe()
+        self.topicPlayers = topic(TOPIC_PLAYERS).subscribe()
+        self.topicTicker = topic(TOPIC_TICKER).subscribe()
         
-        while not self._player:
-            sleep(1)
-        print("Welcome '%s' in game '%s'!\n" % (self._playerName, self._gameName))
-        
+        # recieve player data
+        # TODO: workaround for "self.topicPlayerInfo.payload()" - JSON is broken        
+        rawPayload = self.topicPlayerInfo.rawPayload()
+        playerData = json.loads('{' + rawPayload.decode('utf-8') + '}')
+        self._player = playerData['you']
+
+        # register listeners for player
+        playerId = str(self._player['id'])
+        self.topicPlayerSteer = topic(TOPIC_PLAYER_STEER, playerId)
+        self.topicPlayerBail = topic(TOPIC_PLAYER_BAIL, playerId)
+
+        print("Welcome '%s' in game '%s'!\n" % (self._playerName, gameName))
+
     def bail(self):
-        self._client.publish(topic(TOPIC_PLAYER_BAIL, self._gameName, str(self._player['id'])))
+        if (self._player):
+            self.topicPlayerInfo.unsubscribe()
+            self.topicGrid.unsubscribe()
+            self.topicPlayers.unsubscribe()
+            self.topicTicker.unsubscribe()
+
+            self.topicPlayerBail.publish({ 'name' : self._playerName})
+
+        self._player = None
+
+    def destroy(self):
         self._client.loop_stop()
-    
-        self._gameName = ''
-        self._games = {}
-        self._player = {}
