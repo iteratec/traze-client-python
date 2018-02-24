@@ -42,6 +42,7 @@ class MqttTopic:
     def rawPayload(self) -> bytes:
         while self._lastMessage == self._message:
             sleep(1)
+        self._lastMessage = self._message
         return self._message.payload
 
     def publish(self, obj:object=None):
