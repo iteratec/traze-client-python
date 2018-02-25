@@ -50,20 +50,18 @@ class MqttTopic:
     
 class TrazerMQTTBridge:    
     def __init__(self, playerName, host='localhost', port=1883):
+        def on_connect(client, userdata, flags, rc):
+            print("Connected MQTT broker.")
+            self.topicGameInfo = MqttTopic(client, TOPIC_GAME_INFO).subscribe()
+
         self._playerName = playerName
         self._player = {}
         
         self._client = mqtt.Client()
-        self._client.on_connect = self.on_connect
+        self._client.on_connect = on_connect
         self._client.connect(host, port, 60)
 
         self._client.loop_start()
-
-    # The callback for when the client receives a CONNACK response from the server.
-    def on_connect(self, client, userdata, flags, rc):
-        print("Connected MQTT broker.")
-
-        self.topicGameInfo = MqttTopic(client, TOPIC_GAME_INFO).subscribe()
 
     def games(self):
         gameData = {} 
@@ -72,6 +70,21 @@ class TrazerMQTTBridge:
 
         print("updated game data: %s\n" % (gameData))
         return gameData
+
+    def grid(self):
+        if (self.topicGrid):
+            return self.topicGrid.payload()
+        return None
+        
+    def players(self):
+        if (self.topicPlayers):
+            return self.topicPlayers.payload()
+        return None
+        
+    def ticker(self):
+        if (self.topicTicker):
+            return self.topicTicker.payload()
+        return None
 
     def join(self, gameName:str):
         if (gameName not in self.games()):
@@ -102,6 +115,9 @@ class TrazerMQTTBridge:
         self.topicPlayerBail = topic(TOPIC_PLAYER_BAIL, playerId)
 
         print("Welcome '%s' in game '%s'!\n" % (self._playerName, gameName))
+
+    def steer(self, direction):
+        raise RuntimeWarning('Not implemented yet.')
 
     def bail(self):
         if (self._player):
