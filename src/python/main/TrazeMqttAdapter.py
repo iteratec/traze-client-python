@@ -60,7 +60,7 @@ class TrazeMqttAdapter:
         self._gameData = {} 
         self._player = {"name" : playerName}
 
-        self._client = mqtt.Client()
+        self._client = mqtt.Client(client_id = playerName)
         self._client.on_connect = on_connect
         self._client.connect(host, port, 60)
 
