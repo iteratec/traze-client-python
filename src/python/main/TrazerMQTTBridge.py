@@ -38,7 +38,7 @@ class MqttTopic:
         return self
 
     def payload(self) -> object:
-        return json.loads(self.rawPayload())
+        return json.loads(str(self.rawPayload(), 'utf-8'))
 
     def rawPayload(self) -> bytes:
         currentTime = self.currentMillis()
