@@ -8,7 +8,9 @@ from TrazerMQTTBridge import TrazerMQTTBridge
 
 bridge = TrazerMQTTBridge("HansWurst")
 bridge.join('1')
-bridge.grid()
+bridge.steer('N')
+
+print(bridge.grid())
 
 bridge.bail()
 bridge.destroy()

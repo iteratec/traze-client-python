@@ -1,7 +1,7 @@
 import json
+import time
 import paho.mqtt.client as mqtt
 
-from time import sleep
 from paho.mqtt.client import MQTTMessage
 
 # sent
@@ -20,12 +20,13 @@ class MqttTopic:
     def __init__(self, client: mqtt.Client, name:str, *args: str):
         self._name = name.replace('+', '%s') % (args)
         self._message = None
-        self._lastMessage = None
+        self._messageTime = self.currentMillis()
         self._client = client
 
     def subscribe(self):
         def on_message(client, userdata, message: MQTTMessage):
             self._message = message
+            self._messageTime = self.currentMillis()
 
         self._client.subscribe(self._name)
         self._client.message_callback_add(self._name, on_message)
@@ -40,13 +41,16 @@ class MqttTopic:
         return json.loads(self.rawPayload())
 
     def rawPayload(self) -> bytes:
-        while self._lastMessage == self._message:
-            sleep(1)
-        self._lastMessage = self._message
+        currentTime = self.currentMillis()
+        while self._messageTime <= currentTime:
+            time.sleep(0.25)
         return self._message.payload
 
     def publish(self, obj:object=None):
         self._client.publish(self._name, json.dumps(obj))
+
+    def currentMillis(self): 
+        return int(round(time.time() * 1000))
     
 class TrazerMQTTBridge:    
     def __init__(self, playerName, host='traze.iteratec.de', port=1883):
