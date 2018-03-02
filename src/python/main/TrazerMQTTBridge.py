@@ -49,7 +49,7 @@ class MqttTopic:
         self._client.publish(self._name, json.dumps(obj))
     
 class TrazerMQTTBridge:    
-    def __init__(self, playerName, host='localhost', port=1883):
+    def __init__(self, playerName, host='traze.iteratec.de', port=1883):
         def on_connect(client, userdata, flags, rc):
             print("Connected MQTT broker.")
             self.topicGameInfo = MqttTopic(client, TOPIC_GAME_INFO).subscribe()
@@ -87,15 +87,12 @@ class TrazerMQTTBridge:
         return None
 
     def join(self, gameName:str):
-        if (gameName not in self.games()):
-            print("Unknown game: '%s'!" % (gameName))
-            return
+        #if (gameName not in self.games()):
+        #    print("Unknown game: '%s'!" % (gameName))
+        #    return
         
         def topic(name:str, *args: str) -> MqttTopic:
             return MqttTopic(self._client, name, gameName, *args)
-
-        # send join
-        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._playerName})
 
         # register listeners for game
         self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._playerName).subscribe()
@@ -103,21 +100,20 @@ class TrazerMQTTBridge:
         self.topicPlayers = topic(TOPIC_PLAYERS).subscribe()
         self.topicTicker = topic(TOPIC_TICKER).subscribe()
         
-        # recieve player data
-        # TODO: workaround for "self.topicPlayerInfo.payload()" - JSON is broken        
-        rawPayload = self.topicPlayerInfo.rawPayload()
-        playerData = json.loads('{' + rawPayload.decode('utf-8') + '}')
-        self._player = playerData['you']
+        # send join and recieve data
+        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._playerName})
+        # self._player = self.topicPlayerInfo.payload()
 
         # register listeners for player
-        playerId = str(self._player['id'])
+        playerId = '1' # str(self._player['id'])
         self.topicPlayerSteer = topic(TOPIC_PLAYER_STEER, playerId)
         self.topicPlayerBail = topic(TOPIC_PLAYER_BAIL, playerId)
 
         print("Welcome '%s' in game '%s'!\n" % (self._playerName, gameName))
 
     def steer(self, direction):
-        raise RuntimeWarning('Not implemented yet.')
+        if (self._player):
+            self.topicPlayerSteer.publish({ 'course' : direction, 'playerToken' : self._player.secretUserToken })
 
     def bail(self):
         if (self._player):
