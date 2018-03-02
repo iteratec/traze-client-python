@@ -1,1 +1,1 @@
-from .src.python.main.TrazerMQTTBridge import TrazerMQTTBridge
+from .src.python.main.TrazeMqttAdapter import TrazeMqttAdapter
