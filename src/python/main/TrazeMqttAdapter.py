@@ -100,7 +100,7 @@ class TrazeMqttAdapter:
 
     def steer(self, direction):
         if (self.topicPlayerSteer):
-            self.topicPlayerSteer.publish({ 'course' : direction, 'playerToken' : self._player.secretUserToken })
+            self.topicPlayerSteer.publish({ 'course' : direction, 'playerToken' : self._player['secretUserToken'] })
 
     def bail(self):
         if (self.topicPlayerBail):
