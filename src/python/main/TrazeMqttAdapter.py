@@ -42,9 +42,10 @@ class MqttTopic:
         self._client.publish(self._name, json.dumps(obj))
     
 class TrazeMqttAdapter:    
-    def __init__(self, playerName, host='traze.iteratec.de', port=1883):
+    def __init__(self, clientName:str, host='traze.iteratec.de', port=1883):
         def on_gameInfo(payload:object):
             for game in payload:
+                print("Add game: %s" % (game['name']))
                 self._gameData[game['name']] = game['activePlayers']
 
         def on_connect(client, userdata, flags, rc):
@@ -58,9 +59,10 @@ class TrazeMqttAdapter:
         self.topicPlayerBail = None
 
         self._gameData = {} 
-        self._player = {"name" : playerName}
+        self._name = clientName
+        self._player = {"name" : self._name}
 
-        self._client = mqtt.Client(client_id = playerName)
+        self._client = mqtt.Client(client_id = self._name)
         self._client.on_connect = on_connect
         self._client.connect(host, port, 60)
 
@@ -87,7 +89,7 @@ class TrazeMqttAdapter:
             self.topicPlayerSteer = topic(TOPIC_PLAYER_STEER, playerId)
             self.topicPlayerBail = topic(TOPIC_PLAYER_BAIL, playerId)
 
-            print("Welcome '%s' in game '%s'!\n" % (self._player['name'], gameName))
+            print("Welcome '%s' in game '%s'!\n" % (self._name, gameName))
 
         # register listeners for game
         self.topicGrid = topic(TOPIC_GRID).subscribe(on_grid)
@@ -95,8 +97,8 @@ class TrazeMqttAdapter:
         self.topicTicker = topic(TOPIC_TICKER).subscribe(on_ticker)
         
         # send join 
-        self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._player['name']).subscribe(on_playerInfo)
-        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._player['name']})
+        self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._name).subscribe(on_playerInfo)
+        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._name})
 
     def steer(self, direction):
         if (self.topicPlayerSteer):
@@ -108,14 +110,14 @@ class TrazeMqttAdapter:
             self.topicPlayers.unsubscribe()
             self.topicTicker.unsubscribe()
 
-            self.topicPlayerBail.publish({ 'name' : self._player['name']})
+            self.topicPlayerBail.publish({ 'name' : self._name})
 
         self.topicGrid = None
         self.topicPlayers = None
         self.topicTicker = None
         self.topicPlayerSteer = None
         self.topicPlayerBail = None
-        self._player = None
+        self._player = { 'name' : self._name}
 
     def destroy(self):
         self._client.loop_stop()
