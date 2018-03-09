@@ -1,5 +1,6 @@
 import json
 import time
+import uuid
 import paho.mqtt.client as mqtt
 
 from paho.mqtt.client import MQTTMessage
@@ -29,6 +30,7 @@ class MqttTopic:
                 if on_payload:
                     on_payload(payload)
 
+        # print("Subscribe at %s\n" % (self._name))
         self._client.subscribe(self._name)
         if on_payload_funcs:
             self._client.message_callback_add(self._name, on_message)
@@ -51,6 +53,9 @@ class TrazePlayer:
         self._x, self._y = [-1, -1]
         self._direction = None
         self._frags = 0
+        self._on_update = None
+        self._bike = None
+        self._tiles = None
 
     def __str__(self):
         return "TrazePlayer(name=%s,id=%s,x=%d,y=%d,dir=%s,frags=%d)" % (self._name, self._id, self._x, self._y, self._direction, self._frags)
@@ -60,36 +65,39 @@ class TrazePlayer:
         self._secret = payload['secretUserToken']
         self._x, self._y = payload['position']
         self._direction = None
-        self.__callOnUpdate__()
+        self._last = [self._x, self._y, self._direction]
+
+        # workaround: always start the bot after joining
+        self.steer('N')
 
     def __onGrid__(self, payload:object):
-        if not self.isAlive():
-            return
+        self._bike = None
+        self._tiles = payload['tiles']
+        for bike in payload['bikes']:
+            if (bike['playerId'] == self._id):
+                self._bike = bike
+                break
 
-        self._grid = payload
-        for bike in self._grid['bikes']:
-            if (bike['playerId'] != self._id):
-                continue
+        if self._bike:
+            self._x, self._y = self._bike['currentLocation']
+            self._direction  = self._bike['direction']
 
-            self._x, self._y = bike['currentLocation']
-            self._direction = bike['direction']
+            # workaround: guarantee this player was drawn on tiles
+            for pos in self._bike['trail']:
+                self._tiles[pos[1]][pos[0]] = self._id
+
             self.__callOnUpdate__()
 
     def __onPlayers__(self, payload:object):
-        if not self.isAlive():
-            return
-            
         self._players = payload
+        myPlayer = None
         for player in self._players:
-            if (player['id'] != self._id):
-                continue
-
+            if (player['id'] == self._id):
+                myPlayer = player
+                break
+                
+        if myPlayer:
             self._frags = player['frags']
-            self.__callOnUpdate__()
-
-    def __callOnUpdate__(self):
-        if self._on_update:
-            self._on_update()
 
     def isAlive(self) -> bool:
         return self._id is not None
@@ -104,7 +112,8 @@ class TrazePlayer:
                 time.sleep(1)
 
     def steer(self, direction):
-        if direction:
+        if (self._x >= 0 and self._y >= 0):
+            # print("# steer (%d,%d) -> %s (last: %s)" % (self._x, self._y, direction, self._direction))
             self._direction = direction
             self._parent.__steer__(direction)
 
@@ -115,9 +124,16 @@ class TrazePlayer:
         self._secret = ''
         self._x, self._y = [-1, -1]
         self._direction = None
+        self.__callOnUpdate__()
+
+    def __callOnUpdate__(self):
+        if self._on_update and self._last != [self._x, self._y, self._direction]:
+            # print("call on_update() at ", [self._x, self._y, self._direction])
+            self._on_update()
+            self._last = [self._x, self._y, self._direction]
 
 class TrazeMqttAdapter:    
-    def __init__(self, clientName:str, host='traze.iteratec.de', port=1883):
+    def __init__(self, clientName:str, host='traze.iteratec.de', port=8883, transport='tcp'):
         def on_gameInfo(payload:object):
             for game in payload:
                 self._gameData[game['name']] = game['activePlayers']
@@ -134,11 +150,13 @@ class TrazeMqttAdapter:
 
         self._gameData = {} 
         self._name = clientName
+        self._clientId = str(uuid.uuid4())
         self._player:TrazePlayer = TrazePlayer(self)
 
-        self._client = mqtt.Client(client_id = self._name)
+        self._client = mqtt.Client(client_id = self._clientId, transport=transport)
         self._client.on_connect = on_connect
-        self._client.connect(host, port, 60)
+        self._client.tls_set_context()
+        self._client.connect(host, port)
 
         self._client.loop_start()
 
@@ -173,8 +191,8 @@ class TrazeMqttAdapter:
         self.topicTicker = topic(TOPIC_TICKER).subscribe(on_ticker)
         
         # send join 
-        self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._name).subscribe(on_join, self._player.__onJoin__)
-        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._name})
+        self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._clientId).subscribe(on_join, self._player.__onJoin__)
+        topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._name, 'mqttClientName' : self._clientId})
 
         return self._player
 
