@@ -52,6 +52,7 @@ class TrazePlayer:
         self._on_update = None
         self._bike = None
         self._tiles = None
+        self._isAlive = False
 
     def __str__(self):
         return "TrazePlayer(name=%s,id=%s,x=%d,y=%d,dir=%s,frags=%d)" % (self._name, self._id, self._x, self._y, self._direction, self._frags)
@@ -62,6 +63,7 @@ class TrazePlayer:
         self._x, self._y = payload['position']
         self._direction = None
         self._last = [self._x, self._y, self._direction]
+        self._isAlive = True
 
         print("Welcome '%s'!\n" % (self._name))
 
@@ -69,35 +71,35 @@ class TrazePlayer:
         self.steer('N')
 
     def __onGrid__(self, payload:object):
+        self._x, self._y = [-1, -1]
+        self._direction = None
         self._bike = None
-        self._tiles = payload['tiles']
+        self._trails = {}
         for bike in payload['bikes']:
-            if (bike['playerId'] == self._id):
-                self._bike = bike
-                break
+            bike_id = bike['playerId']
 
+            self._trails[bike_id] = bike['trail']
+            if (bike_id == self._id):
+                self._bike = bike
+        
         if self._bike:
             self._x, self._y = self._bike['currentLocation']
             self._direction  = self._bike['direction']
-
-            # workaround: guarantee this player was drawn on tiles
-            self._tiles[self._y][self._x] = self._id
 
             self.__callOnUpdate__()
 
     def __onPlayers__(self, payload:object):
         self._players = payload
-        myPlayer = None
+        isAlive = False
         for player in self._players:
             if (player['id'] == self._id):
-                myPlayer = player
+                isAlive = True
                 break
-                
-        if myPlayer:
-            self._frags = player['frags']
+
+        self._isAlive = isAlive
 
     def isAlive(self) -> bool:
-        return self._id is not None
+        return self._isAlive
 
     def isMoving(self) -> bool:
         return self.isAlive() and self._direction is not None
@@ -114,13 +116,16 @@ class TrazePlayer:
             self.__topic__(TOPIC_PLAYER_STEER).publish({ 'course' : direction, 'playerToken' : self._secret })
 
     def bail(self):
-        # self.__topic__(TOPIC_PLAYER_BAIL).publish({ 'name' : self._name})
-
+        self._isAlive = False
         self._x, self._y = [-1, -1]
         self._direction = None
         self._id = None
         self._secret = None
         self._on_update = None
+
+    def die(self):
+        self.__topic__(TOPIC_PLAYER_BAIL).publish({ 'name' : self._name})
+        self._client.loop_stop()
 
     def __topic__(self, name:str) -> MqttTopic:
         return MqttTopic(self._client, name, self._name, self._id)
