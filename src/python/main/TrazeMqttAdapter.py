@@ -36,18 +36,14 @@ class MqttTopic:
             self._client.message_callback_add(self._name, on_message)
         return self
 
-    def unsubscribe(self):
-        self._client.message_callback_remove(self._name)
-        self._client.unsubscribe(self._name)
-        return self
-
     def publish(self, obj:object=None):
+        # print("# publish ", self._name, 'at', obj)
         self._client.publish(self._name, json.dumps(obj))
 
 class TrazePlayer:
-    def __init__(self, parent):
-        self._parent = parent
-        self._name = self._parent._name
+    def __init__(self, client:mqtt.Client, name:str):
+        self._client = client
+        self._name = name
         self._id = None
         self._secret = ''
         self._x, self._y = [-1, -1]
@@ -67,6 +63,8 @@ class TrazePlayer:
         self._direction = None
         self._last = [self._x, self._y, self._direction]
 
+        print("Welcome '%s'!\n" % (self._name))
+
         # workaround: always start the bot after joining
         self.steer('N')
 
@@ -83,8 +81,7 @@ class TrazePlayer:
             self._direction  = self._bike['direction']
 
             # workaround: guarantee this player was drawn on tiles
-            for pos in self._bike['trail']:
-                self._tiles[pos[1]][pos[0]] = self._id
+            self._tiles[self._y][self._x] = self._id
 
             self.__callOnUpdate__()
 
@@ -105,116 +102,87 @@ class TrazePlayer:
     def isMoving(self) -> bool:
         return self.isAlive() and self._direction is not None
 
-    def subscribe(self, on_update:Callable[[None], None], wait = False):
+    def subscribe(self, on_update:Callable[[object], None], wait = False):
         self._on_update = on_update
-        if wait:
-            while not self.isAlive():
-                time.sleep(1)
+        while wait and not self.isAlive():
+            time.sleep(0.5)
 
     def steer(self, direction):
         if (self._x >= 0 and self._y >= 0):
             # print("# steer (%d,%d) -> %s (last: %s)" % (self._x, self._y, direction, self._direction))
             self._direction = direction
-            self._parent.__steer__(direction)
+            self.__topic__(TOPIC_PLAYER_STEER).publish({ 'course' : direction, 'playerToken' : self._secret })
 
     def bail(self):
-        self._parent.__bail__()
+        # self.__topic__(TOPIC_PLAYER_BAIL).publish({ 'name' : self._name})
 
-        self._id = None
-        self._secret = ''
         self._x, self._y = [-1, -1]
         self._direction = None
-        self.__callOnUpdate__()
+        self._id = None
+        self._secret = None
+        self._on_update = None
+
+    def __topic__(self, name:str) -> MqttTopic:
+        return MqttTopic(self._client, name, self._name, self._id)
 
     def __callOnUpdate__(self):
         if self._on_update and self._last != [self._x, self._y, self._direction]:
             # print("call on_update() at ", [self._x, self._y, self._direction])
-            self._on_update()
+            self._on_update(self)
             self._last = [self._x, self._y, self._direction]
 
 class TrazeMqttAdapter:    
-    def __init__(self, clientName:str, host='traze.iteratec.de', port=8883, transport='tcp'):
+    def __init__(self, name:str, host='traze.iteratec.de', port=8883, transport='tcp'):
         def on_gameInfo(payload:object):
             for game in payload:
                 self._gameData[game['name']] = game['activePlayers']
 
         def on_connect(client, userdata, flags, rc):
             print("Connected MQTT broker.")
-            self.topicGameInfo = MqttTopic(client, TOPIC_GAME_INFO).subscribe(on_gameInfo)
+            MqttTopic(client, TOPIC_GAME_INFO).subscribe(on_gameInfo)
 
-        self.topicGrid = None
-        self.topicPlayers = None
-        self.topicTicker = None
-        self.topicPlayerSteer = None
-        self.topicPlayerBail = None
-
+        self._init = True
         self._gameData = {} 
-        self._name = clientName
-        self._clientId = str(uuid.uuid4())
-        self._player:TrazePlayer = TrazePlayer(self)
+        self._name = name
 
+        self._clientId = str(uuid.uuid4())
         self._client = mqtt.Client(client_id = self._clientId, transport=transport)
         self._client.on_connect = on_connect
         self._client.tls_set_context()
         self._client.connect(host, port)
-
         self._client.loop_start()
 
+        self._player:TrazePlayer = TrazePlayer(self._client, self._name)
+
     def games(self):
+        while not self._gameData:
+           time.sleep(0.5)
         return self._gameData
 
     def join(self, gameName:str, on_grid: Callable[[object], None] = None, on_players: Callable[[object], None] = None, on_ticker: Callable[[object], None] = None) -> TrazePlayer:
         if (gameName not in self.games()):
             print("Unknown game: '%s'!" % (gameName))
             return
-
+        
         if self._player.isAlive():
             print("Player has already joined!")
             return
-        
+
         def topic(name:str, *args: str) -> MqttTopic:
             return MqttTopic(self._client, name, gameName, *args)
-
-        def on_join(payload:object):
-            self.topicPlayerInfo.unsubscribe()
-
-            # register listeners for player
-            playerId = str(payload['id'])
-            self.topicPlayerSteer = topic(TOPIC_PLAYER_STEER, playerId)
-            self.topicPlayerBail = topic(TOPIC_PLAYER_BAIL, playerId)
-
-            print("Welcome '%s' in game '%s'!\n" % (self._name, gameName))
             
         # register listeners for game
-        self.topicGrid = topic(TOPIC_GRID).subscribe(self._player.__onGrid__, on_grid)
-        self.topicPlayers = topic(TOPIC_PLAYERS).subscribe(self._player.__onPlayers__, on_players)
-        self.topicTicker = topic(TOPIC_TICKER).subscribe(on_ticker)
+        if self._init:
+            self._init = False
+            topic(TOPIC_GRID).subscribe(self._player.__onGrid__, on_grid)
+            topic(TOPIC_PLAYERS).subscribe(self._player.__onPlayers__, on_players)
+            topic(TOPIC_TICKER).subscribe(on_ticker)
+            topic(TOPIC_PLAYER_INFO, self._clientId).subscribe(self._player.__onJoin__)
         
         # send join 
-        self.topicPlayerInfo = topic(TOPIC_PLAYER_INFO, self._clientId).subscribe(on_join, self._player.__onJoin__)
         topic(TOPIC_PLAYER_JOIN).publish({ 'name' : self._name, 'mqttClientName' : self._clientId})
 
         return self._player
-
-    def __steer__(self, direction):
-        if (self.topicPlayerSteer):
-            self.topicPlayerSteer.publish({ 'course' : direction, 'playerToken' : self._player._secret })
-
-    def __bail__(self):
-        if (self.topicPlayerBail):
-            self.topicPlayerBail.publish({ 'name' : self._name})
-        if self.topicGrid: 
-            self.topicGrid.unsubscribe()
-        if self.topicPlayers: 
-            self.topicPlayers.unsubscribe()
-        if self.topicTicker: 
-            self.topicTicker.unsubscribe()
-
-        self.topicGrid = None
-        self.topicPlayers = None
-        self.topicTicker = None
-        self.topicPlayerSteer = None
-        self.topicPlayerBail = None
 
     def destroy(self):
         self._client.loop_stop()
