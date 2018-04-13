@@ -5,7 +5,7 @@ import paho.mqtt.client as mqtt
 
 from paho.mqtt.client import MQTTMessage
 from typing import Callable
-
+ 
 # sent
 TOPIC_PLAYER_JOIN = 'traze/+/join'
 TOPIC_PLAYER_STEER = 'traze/+/+/steer'
