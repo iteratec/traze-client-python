@@ -1,20 +1,9 @@
-to simulate join():
+# Traze Client Python
+A Traze client based on Python 3.6.
 
-mosquitto_pub.exe -h localhost -t traze/games -m "[ { \"name\": \"1\", \"activePlayers\": 2 } ] "
-mosquitto_pub.exe -h localhost -t traze/1/player/HansWurst -m "{ \"id\": 2, \"name\": \"HansWurst\", \"secretUserToken\":\"secret\", \"position\": \"(15,3)\" }"
+## Traze
+Traze is a simple tron-like multi client online game serving as a playground for exploring new technologies.
 
-example:
-import time
-from TrazeMqttAdapter import TrazeMqttAdapter
+## Hosted by iteratec
+You can join a hosted instance at [traze.iteratec.de](https://traze.iteratec.de).
 
-def printGrid(payload):
-    print(payload)
-
-bridge = TrazerMQTTBridge("HansWurst")
-bridge.join('1', on_grid=printGrid)
-bridge.steer('N')
-
-time.sleep(1)
-
-bridge.bail()
-bridge.destroy()
