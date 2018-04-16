@@ -13,6 +13,6 @@
 # limitations under the License.
 
 __project__ = 'traze'
-__version__ = "1.0.0-snapshot"
+__version__ = "1.1.0-snapshot"
 
 from .TrazeMqttAdapter import TrazeMqttAdapter
