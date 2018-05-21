@@ -24,17 +24,21 @@ class BotBase:
     def __init__(self, botName:str):
         self._botName:str = botName
         self.__player__:Player = None
-        self.world:World = World() 
+        self.__game__:Game = None
+
+    def join(self, game:Game):
+        def on_update():
+            nextAction = self.nextAction
+            if nextAction: 
+                self.steer(nextAction)
                       
-    def join(self, game:Game=None):
-        if not game:
-            game = self.world.games[0]
+        self.__game__ = game
+        self.__player__ = game.join(self._botName, on_update)
+        print("Bot joined")
 
-        self.__player__ = game.join(self._botName)
-
-    def play(self, count:int = 1):
+    def play(self, game:Game, count:int = 1):
         for i in range(1, count + 1):
-            self.join()
+            self.join(game)
             print("start game", i)
 
             # wait for death
@@ -47,13 +51,9 @@ class BotBase:
     def die(self):
         self.__player__.die()
 
-    def __onUpdate__(self):
-        nextAction = self.nextAction
-        if nextAction: 
-            self.steer(nextAction)
-
     @property
     def actions(self) -> set:
+        print("actions at", self.x, self.y)
         validActions:list = list()
         for action in list(Action):
             if self.valid(self.x + action.dX, self.y + action.dY):
@@ -68,33 +68,29 @@ class BotBase:
     # delegate 
     @property
     def alive(self) -> bool:
-        return self.__player__ and self.__player__.isAlive()
+        if not self.__player__:
+            return False
+        return self.__player__.alive
 
     @property
     def x(self) -> int:
-        if self.alive:
-            return self.__player__._x
-        return -1
+        if not self.__player__:
+            return -1000000
+        return self.__player__.x
 
     @property
     def y(self) -> int:
-        if self.alive:
-            return self.__player__._y
-        return -1
+        if not self.__player__:
+            return -1000000
+        return self.__player__.y
 
     def valid(self, x:int, y:int) -> bool:
         if not self.alive:
             return False
+        return self.__game__.grid.valid(x, y)
 
-        if (x < 0 or x > 61 or y < 0 or y > 61):
-            return False
-
-        for trail in self.__player__._trails.values():
-            if ([x,y] in trail):
-                return False
-
-        return True
-
+    # action darf None sein
     def steer(self, action:Action):
-        # print("  # steer", action, ", alive", self.alive)
-        self.alive and action and self.__player__.steer(action.name)
+        if self.__player__ and action:
+            print("  # steer", action, ", alive", self.alive)
+            self.__player__.steer(action.name)

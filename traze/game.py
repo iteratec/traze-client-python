@@ -1,5 +1,5 @@
 import time
-from typing import Iterable,List,Dict
+from typing import Iterable, List, Dict, Callable
 
 from .adapter import TrazeMqttAdapter
 
@@ -38,24 +38,10 @@ class Grid(Base):
 
         self.adapter.on_grid(self.parent.name, on_grid)
 
-#    def __onGrid__(self, payload:object):
-#        self._x, self._y = [-1, -1]
-
-#       myBike = None
-#        self._trails = {}
-#        for bike in payload['bikes']:
-#            bike_id = bike['playerId']
-
-#            self._trails[bike_id] = bike['trail']
-#            if (bike_id == self._id):
-#                myBike = bike
-
-#        if myBike:
-#            self._x, self._y = myBike['currentLocation']
-#            if self._on_update and self._last != [self._x, self._y]:
-#                # print(" call on_update() from ", self._last, "to", [self._x, self._y, ])
-#                self._on_update()
-#                self._last = [self._x, self._y]
+    def valid(self, x:int, y:int) -> bool:
+        if (x < 0 or x >= self.width or y < 0 or y >= self.height):
+            return False
+        return self.tiles[x][y] == 0
 
 class Player(Base):
     def __init__(self, parent:Base, name:str):
@@ -65,11 +51,8 @@ class Player(Base):
         self._id:int = None
         self._secret:str = ''
 
-#        self._trails:dict = {}
-        self._last = []
-
-    def join(self):
-        if self.isAlive():
+    def join(self, on_update:Callable[[None], None]=None) -> 'Player':
+        if self.alive:
             print("Player '%s' is already alive!" % (self.name))
             return
 
@@ -88,26 +71,65 @@ class Player(Base):
                     break
             self._isAlive = isAlive
 
+            if isAlive and on_update:
+                on_update()
+
+        def on_grid(payload:object):
+            if not self.alive:
+                return
+
+            myBike = None
+            for bike in payload['bikes']:
+                bike_id = bike['playerId']
+                if (bike_id == self._id):
+                    myBike = bike
+
+            if myBike:
+                self._x, self._y = myBike['currentLocation']
+#                print("current location: ", self._x, self._y)
+
+            if on_update:
+                on_update()
+
+#            if self.on_update and self._last != [self._x, self._y]:
+#                # print(" call on_update() from ", self._last, "to", [self._x, self._y, ])
+#                self.on_update()
+#                self._last = [self._x, self._y]
+
+        self.adapter.on_grid(self.parent.name, on_grid)
         self.adapter.on_player_info(self.parent.name, on_join)
         self.adapter.on_players(self.parent.name, on_players)
 
         # send join and wait for player
         self.adapter.publish_join(self.parent.name, self.name)
         for _ in range(30):
-            if self.isAlive():
-                return
+            if self.alive:
+                return self
             time.sleep(0.5)
         raise NotConnected()
 
-    def isAlive(self) -> bool:
+    @property
+    def alive(self) -> bool:
         return self._isAlive
 
-    def steer(self, direction):
-        self.adapter.publish_steer(self.parent.name, self._id, self._secret)
+    @property
+    def x(self) -> int:
+        if self.alive:
+            return self._x
+        return -1
+
+    @property
+    def y(self) -> int:
+        if self.alive:
+            return self._y
+        return -1
+
+    def steer(self, course:str):
+        self.adapter.publish_steer(self.parent.name, self._id, self._secret, course)
 
     def bail(self):
         self._isAlive:bool = False
-        self.adapter.publish_bail(self.parent.name, self._id, self.name)
+        self.adapter.publish_bail(self.parent.name, self._id, self._secret)
 
         self._x, self._y = [-1, -1]
         self._id:int = None
@@ -126,14 +148,12 @@ class Game(Base):
         self.grid:Grid = Grid(self)
         self._init:bool = True
 
-    def join(self, player_name:str) -> Player:
-        if self.player and self.player.name == player_name and self.player.isAlive():
+    def join(self, player_name:str, on_update:Callable[[None], None]=None) -> Player:
+        if self.player and self.player.alive and self.player.name == player_name:
             print("Player '%s' has already joined!" % (self.player.name))
             return None
 
-        self.player:Player = Player(self, player_name)
-        self.player.join()
-
+        self.player:Player = Player(self, player_name).join(on_update)
         return self.player
 
 class World(Base):

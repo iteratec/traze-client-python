@@ -1,4 +1,5 @@
 import uuid
+import functools
 import paho.mqtt.client as mqtt
 from typing import Callable
 
@@ -25,28 +26,32 @@ class TrazeMqttAdapter:
         self._client.loop_start()
 
     def on_game_info(self, on_game_info:Callable[[object], None]):
-        MqttTopic(self._client, 'traze/games').subscribe(on_game_info)
+        self.__get_topic__('traze/games').subscribe(on_game_info)
 
-    def on_player_info(self, gameName:str, on_player_info:Callable[[object], None]):
-        MqttTopic(self._client, 'traze/+/player/+', gameName, self.__client_id__).subscribe(on_player_info)
+    def on_player_info(self, game_name:str, on_player_info:Callable[[object], None]):
+        self.__get_topic__('traze/+/player/+', game_name, self.__client_id__).subscribe(on_player_info)
 
-    def on_grid(self, gameName:str, on_grid:Callable[[object], None]):
-        MqttTopic(self._client, 'traze/+/grid', gameName).subscribe(on_grid)
+    def on_grid(self, game_name:str, on_grid:Callable[[object], None]):
+        self.__get_topic__('traze/+/grid', game_name).subscribe(on_grid)
 
-    def on_players(self, gameName:str, on_players:Callable[[object], None]):
-        MqttTopic(self._client, 'traze/+/players', gameName).subscribe(on_players)
+    def on_players(self, game_name:str, on_players:Callable[[object], None]):
+        self.__get_topic__('traze/+/players', game_name).subscribe(on_players)
 
-    def on_ticker(self, gameName:str, on_ticker:Callable[[object], None]):
-        MqttTopic(self._client, 'traze/+/ticker', gameName).subscribe(on_ticker)
+    def on_ticker(self, game_name:str, on_ticker:Callable[[object], None]):
+        self.__get_topic__('traze/+/ticker', game_name).subscribe(on_ticker)
 
-    def publish_join(self, gameName:str, playerName:str):
-        MqttTopic(self._client, 'traze/+/join', gameName).publish({ 'name' : playerName, 'mqttClientName' : self.__client_id__})
+    def publish_join(self, game_name:str, player_name:str):
+        self.__get_topic__('traze/+/join', game_name).publish({ 'name' : player_name, 'mqttClientName' : self.__client_id__})
 
-    def publish_steer(self, gameName:str, playerId:str, playerToken:str, course:str):
-        MqttTopic(self._client, 'traze/+/+/steer', gameName, playerId).publish({ 'course' : course, 'playerToken' : playerToken})
+    def publish_steer(self, game_name:str, player_id:str, player_token:str, course:str):
+        self.__get_topic__('traze/+/+/steer', game_name, player_id).publish({ 'course' : course, 'playerToken' : player_token})
 
-    def publish_bail(self, gameName:str, playerId:str, playerName:str):
-        MqttTopic(self._client, 'traze/+/+/bail', gameName, playerId).publish({ 'name' : playerName})
+    def publish_bail(self, game_name:str, player_id:str, player_token:str):
+        self.__get_topic__('traze/+/+/bail', game_name, player_id).publish({'playerToken' : player_token})
+
+    @functools.lru_cache()
+    def __get_topic__(self, topic_name:str, *args: str) -> MqttTopic:    
+        return MqttTopic(self._client, topic_name, *args)
 
     def destroy(self):
         self._client.loop_stop()

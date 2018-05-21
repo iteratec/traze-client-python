@@ -14,7 +14,7 @@ class RandomBot(BotBase):
     @property
     def nextAction(self) -> Action:
         actions:list = self.actions
-        # print("# actions", [action.name for action in actions])
+        print("# actions", [action.name for action in actions])
         if not actions:
             return None
 
