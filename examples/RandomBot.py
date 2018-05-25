@@ -1,7 +1,7 @@
 import time
 import random
-import sys
-sys.path.append("..")
+import os, sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 from typing import List
 from traze.bot import Action, BotBase
@@ -22,4 +22,4 @@ class RandomBot(BotBase):
         return self._lastAction
 
 if __name__ == "__main__":
-    RandomBot(World().games[0]).play(1).die()
+    RandomBot(World().games[0]).play(1)

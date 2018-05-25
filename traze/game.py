@@ -13,10 +13,6 @@ class Base:
         self._name = name or self.__class__.__name__
 
     @property
-    def parent(self) -> 'Base':
-        return self._parent
-
-    @property
     def name(self) -> str:
         return self._name
         
@@ -24,8 +20,8 @@ class Base:
     def adapter(self) -> TrazeMqttAdapter:
         if self.__adapter__:
             return self.__adapter__
-        if self.parent:
-            return self.parent.adapter
+        if self._parent:
+            return self._parent.adapter
         return None
 
 class Grid(Base):
@@ -41,12 +37,12 @@ class Grid(Base):
             self.height = payload['height']
             self.tiles = payload['tiles'][:] # clone
 
-        self.adapter.on_grid(self.parent.name, on_grid)
+        self.adapter.on_grid(self.game.name, on_grid)
         return self
 
     @property
     def game(self) -> 'Game':
-        return self.parent
+        return self._parent
 
     def valid(self, x:int, y:int) -> bool:
         if (x < 0 or x >= self.width or y < 0 or y >= self.height):
@@ -103,12 +99,12 @@ class Player(Base):
                 on_update()
                 self._last = [self._x, self._y]
 
-        self.adapter.on_grid(self.parent.name, on_grid)
-        self.adapter.on_player_info(self.parent.name, on_join)
-        self.adapter.on_players(self.parent.name, on_players)
+        self.adapter.on_grid(self.game.name, on_grid)
+        self.adapter.on_player_info(self.game.name, on_join)
+        self.adapter.on_players(self.game.name, on_players)
 
         # send join and wait for player
-        self.adapter.publish_join(self.parent.name, self.name)
+        self.adapter.publish_join(self.game.name, self.name)
         for _ in range(30):
             if self._alive:
                 return self
@@ -117,7 +113,7 @@ class Player(Base):
 
     @property
     def game(self) -> 'Game':
-        return self.parent
+        return self._parent
 
     @property
     def alive(self) -> bool:
@@ -136,18 +132,15 @@ class Player(Base):
         return -1
 
     def steer(self, course:str):
-        self.adapter.publish_steer(self.parent.name, self._id, self._secret, course)
+        self.adapter.publish_steer(self.game.name, self._id, self._secret, course)
 
     def bail(self):
         self._alive:bool = False
-        self.adapter.publish_bail(self.parent.name, self._id, self._secret)
+        self.adapter.publish_bail(self.game.name, self._id, self._secret)
 
         self._x, self._y = [-1, -1]
         self._id:int = None
         self._secret:str = ''
-
-    def die(self):
-        self.bail()
 
     def __str__(self):
         return "%s(name=%s, id=%s, x=%d, y=%d)" % (self.__class__.__name__, self.name, self._id, self._x, self._y)
@@ -159,7 +152,7 @@ class Game(Base):
 
     @property
     def world(self) -> 'World':
-        return self.parent
+        return self._parent
 
     @property
     def grid(self) -> 'Grid':
