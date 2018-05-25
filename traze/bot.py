@@ -33,7 +33,7 @@ class BotBase:
                 self.steer(nextAction)
                       
         self.__game__ = game
-        self.__player__ = game.join(self._botName, on_update)
+        self.__player__:Player = Player(game, self._botName).join(on_update)
         print("Bot joined")
 
     def play(self, game:Game, count:int = 1):

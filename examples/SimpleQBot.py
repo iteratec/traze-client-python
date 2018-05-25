@@ -5,8 +5,8 @@ import sys
 sys.path.append("..")
 
 from typing import Iterable
-from traze.bot import Action
-from traze.bot import BotBase
+from traze.bot import Action, BotBase
+from traze.game import World, Game
 
 ALPHA = 1.0
 GAMMA = 0.8
@@ -78,4 +78,4 @@ class SimpleQBot(BotBase):
         return nextAction
 
 if __name__ == "__main__":
-    SimpleQBot().play(1).die()
+    SimpleQBot().play(World().games[0], 1).die()

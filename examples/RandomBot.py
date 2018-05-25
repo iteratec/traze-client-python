@@ -3,8 +3,8 @@ import random
 import sys
 sys.path.append("..")
 
-from traze.bot import Action
-from traze.bot import BotBase
+from traze.bot import Action, BotBase
+from traze.game import World, Game
 
 class RandomBot(BotBase):
     def __init__(self):
@@ -24,4 +24,4 @@ class RandomBot(BotBase):
         return self._lastAction
 
 if __name__ == "__main__":
-    RandomBot().play(1).die()
+    RandomBot().play(World().games[0], 1).die()

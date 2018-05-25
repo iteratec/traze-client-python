@@ -7,36 +7,46 @@ class NotConnected(TimeoutError):
     pass
 
 class Base:
-    def __init__(self, parent:'Base', adapter:TrazeMqttAdapter=None, name:str=None):
-        self.parent:Base = parent
+    def __init__(self, parent, adapter:TrazeMqttAdapter=None, name:str=None):
+        self._parent = parent
         self.__adapter__:TrazeMqttAdapter = adapter
-        self.name = name or self.__class__.__name__
+        self._name = name or self.__class__.__name__
 
+    @property
+    def parent(self) -> 'Base':
+        return self._parent
+
+    @property
+    def name(self) -> str:
+        return self._name
+        
     @property
     def adapter(self) -> TrazeMqttAdapter:
         if self.__adapter__:
-            # print("Adapter: %s" % (type(self.__adapter__)))
             return self.__adapter__
         if self.parent:
             return self.parent.adapter
         return None
 
 class Grid(Base):
-    def __init__(self, parent:Base):
-        super().__init__(parent)
+    def __init__(self, game:'Game'):
+        super().__init__(game)
         self.width = 0
         self.height = 0
         self.tiles = [[]]
 
-        self.join()
-
-    def join(self):
+    def join(self) -> 'Grid':
         def on_grid(payload:object):
             self.width = payload['width']
             self.height = payload['height']
             self.tiles = payload['tiles'][:] # clone
 
         self.adapter.on_grid(self.parent.name, on_grid)
+        return self
+
+    @property
+    def game(self) -> 'Game':
+        return self.parent
 
     def valid(self, x:int, y:int) -> bool:
         if (x < 0 or x >= self.width or y < 0 or y >= self.height):
@@ -44,18 +54,19 @@ class Grid(Base):
         return self.tiles[x][y] == 0
 
 class Player(Base):
-    def __init__(self, parent:Base, name:str):
-        super().__init__(parent, name=name)
-        self._isAlive:bool = False
+    def __init__(self, game:'Game', name:str):
+        super().__init__(game, name=name)
+        self._alive:bool = False
         self._x, self._y = [-1, -1]
         self._id:int = None
         self._secret:str = ''
+        self._last = [self._x, self._y]
 
     def join(self, on_update:Callable[[None], None]=None) -> 'Player':
-        if self.alive:
+        if self._alive:
             print("Player '%s' is already alive!" % (self.name))
             return
-
+            
         def on_join(payload:object):
             self._id = payload['id']
             self._secret = payload['secretUserToken']
@@ -64,18 +75,18 @@ class Player(Base):
             print("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
 
         def on_players(payload:object):
-            isAlive = False
+            alive = False
             for player in payload:
                 if (player['id'] == self._id):
-                    isAlive = True
+                    alive = True
                     break
-            self._isAlive = isAlive
+            self._alive = alive
 
-            if isAlive and on_update:
+            if alive and on_update:
                 on_update()
 
         def on_grid(payload:object):
-            if not self.alive:
+            if not self._alive:
                 return
 
             myBike = None
@@ -88,13 +99,9 @@ class Player(Base):
                 self._x, self._y = myBike['currentLocation']
 #                print("current location: ", self._x, self._y)
 
-            if on_update:
+            if on_update and self._last != [self._x, self._y]:
                 on_update()
-
-#            if self.on_update and self._last != [self._x, self._y]:
-#                # print(" call on_update() from ", self._last, "to", [self._x, self._y, ])
-#                self.on_update()
-#                self._last = [self._x, self._y]
+                self._last = [self._x, self._y]
 
         self.adapter.on_grid(self.parent.name, on_grid)
         self.adapter.on_player_info(self.parent.name, on_join)
@@ -103,24 +110,28 @@ class Player(Base):
         # send join and wait for player
         self.adapter.publish_join(self.parent.name, self.name)
         for _ in range(30):
-            if self.alive:
+            if self._alive:
                 return self
             time.sleep(0.5)
         raise NotConnected()
 
     @property
+    def game(self) -> 'Game':
+        return self.parent
+
+    @property
     def alive(self) -> bool:
-        return self._isAlive
+        return self._alive
 
     @property
     def x(self) -> int:
-        if self.alive:
+        if self._alive:
             return self._x
         return -1
 
     @property
     def y(self) -> int:
-        if self.alive:
+        if self._alive:
             return self._y
         return -1
 
@@ -128,7 +139,7 @@ class Player(Base):
         self.adapter.publish_steer(self.parent.name, self._id, self._secret, course)
 
     def bail(self):
-        self._isAlive:bool = False
+        self._alive:bool = False
         self.adapter.publish_bail(self.parent.name, self._id, self._secret)
 
         self._x, self._y = [-1, -1]
@@ -142,19 +153,17 @@ class Player(Base):
         return "%s(name=%s, id=%s, x=%d, y=%d)" % (self.__class__.__name__, self.name, self._id, self._x, self._y)
 
 class Game(Base):
-    def __init__(self, parent:Base, name:str):
-        super().__init__(parent, name=name)
-        self.player:Player = None
-        self.grid:Grid = Grid(self)
-        self._init:bool = True
+    def __init__(self, world:'World', name:str):
+        super().__init__(world, name=name)
+        self._grid:Grid = Grid(self).join()
 
-    def join(self, player_name:str, on_update:Callable[[None], None]=None) -> Player:
-        if self.player and self.player.alive and self.player.name == player_name:
-            print("Player '%s' has already joined!" % (self.player.name))
-            return None
+    @property
+    def world(self) -> 'World':
+        return self.parent
 
-        self.player:Player = Player(self, player_name).join(on_update)
-        return self.player
+    @property
+    def grid(self) -> 'Grid':
+        return self._grid
 
 class World(Base):
     def __init__(self):
