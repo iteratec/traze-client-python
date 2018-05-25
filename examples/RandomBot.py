@@ -7,14 +7,14 @@ from traze.bot import Action, BotBase
 from traze.game import World, Game
 
 class RandomBot(BotBase):
-    def __init__(self):
-        super().__init__(self.__class__.__name__)
+    def __init__(self, game:'Game'):
+        super().__init__(game)
         self._lastAction:Action = None
         
     @property
     def nextAction(self) -> Action:
         actions:list = self.actions
-        print("# actions", [action.name for action in actions])
+        # print("# actions", [action.name for action in actions])
         if not actions:
             return None
 
@@ -24,4 +24,4 @@ class RandomBot(BotBase):
         return self._lastAction
 
 if __name__ == "__main__":
-    RandomBot().play(World().games[0], 1).die()
+    RandomBot(World().games[0]).play(1).die()

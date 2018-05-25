@@ -16,8 +16,8 @@ QValues = np.ndarray
 class SimpleQBot(BotBase):
     ''' This bot does neither learn (ALPHA = 1.0) nor use a state, but look one step ahead.
     '''
-    def __init__(self):
-        super().__init__(self.__class__.__name__)
+    def __init__(self, game:'Game'):
+        super().__init__(game)
         self._lastActions:QValues = np.zeros((len(Action)))
 
     def calculateActions(self, x:int, y:int, action:Action=None) -> QValues:
@@ -78,4 +78,4 @@ class SimpleQBot(BotBase):
         return nextAction
 
 if __name__ == "__main__":
-    SimpleQBot().play(World().games[0], 1).die()
+    SimpleQBot(World().games[0]).play(1).die()

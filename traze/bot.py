@@ -20,25 +20,22 @@ class Action(Enum):
     def __repr__(self):
         return "%s %d: %s" % (str(self), self.index, self.value)
 
-class BotBase:
-    def __init__(self, botName:str):
-        self._botName:str = botName
-        self.__player__:Player = None
-        self.__game__:Game = None
+class BotBase(Player):
+    def __init__(self, game:'Game', name:str=None):
+        super().__init__(game, name)
 
-    def join(self, game:Game):
+    def join(self):
         def on_update():
             nextAction = self.nextAction
             if nextAction: 
                 self.steer(nextAction)
-                      
-        self.__game__ = game
-        self.__player__:Player = Player(game, self._botName).join(on_update)
+
+        super().join(on_update)
         print("Bot joined")
 
-    def play(self, game:Game, count:int = 1):
+    def play(self, count:int = 1) -> 'BotBase':
         for i in range(1, count + 1):
-            self.join(game)
+            self.join()
             print("start game", i)
 
             # wait for death
@@ -48,12 +45,9 @@ class BotBase:
 
         return self
 
-    def die(self):
-        self.__player__.die()
-
     @property
     def actions(self) -> set:
-        print("actions at", self.x, self.y)
+        # print("# actions at", self.x, self.y)
         validActions:list = list()
         for action in list(Action):
             if self.valid(self.x + action.dX, self.y + action.dY):
@@ -65,32 +59,11 @@ class BotBase:
     def nextAction(self) -> Action:
         return None
 
-    # delegate 
-    @property
-    def alive(self) -> bool:
-        if not self.__player__:
-            return False
-        return self.__player__.alive
-
-    @property
-    def x(self) -> int:
-        if not self.__player__:
-            return -1000000
-        return self.__player__.x
-
-    @property
-    def y(self) -> int:
-        if not self.__player__:
-            return -1000000
-        return self.__player__.y
-
     def valid(self, x:int, y:int) -> bool:
         if not self.alive:
             return False
-        return self.__game__.grid.valid(x, y)
+        return self.game.grid.valid(x, y)
 
-    # action darf None sein
     def steer(self, action:Action):
-        if self.__player__ and action:
-            print("  # steer", action, ", alive", self.alive)
-            self.__player__.steer(action.name)
+        # action darf None sein
+        action and super().steer(action.name)
