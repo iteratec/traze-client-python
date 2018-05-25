@@ -3,6 +3,7 @@ import random
 import sys
 sys.path.append("..")
 
+from typing import List
 from traze.bot import Action, BotBase
 from traze.game import World, Game
 
@@ -11,10 +12,7 @@ class RandomBot(BotBase):
         super().__init__(game)
         self._lastAction:Action = None
         
-    @property
-    def nextAction(self) -> Action:
-        actions:list = self.actions
-        # print("# actions", [action.name for action in actions])
+    def next_action(self, actions:List[Action]) -> Action:
         if not actions:
             return None
 

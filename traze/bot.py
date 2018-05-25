@@ -1,6 +1,8 @@
 import time
 import random
+from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
+from typing import List
 
 from .adapter import TrazeMqttAdapter
 from .game import World, Game, Grid, Player
@@ -20,13 +22,13 @@ class Action(Enum):
     def __repr__(self):
         return "%s %d: %s" % (str(self), self.index, self.value)
 
-class BotBase(Player):
+class BotBase(Player, metaclass=ABCMeta):
     def __init__(self, game:'Game', name:str=None):
         super().__init__(game, name)
 
     def join(self):
         def on_update():
-            nextAction = self.nextAction
+            nextAction = self.next_action(self.actions)
             if nextAction: 
                 self.steer(nextAction)
 
@@ -55,9 +57,9 @@ class BotBase(Player):
 
         return validActions
 
-    @property
-    def nextAction(self) -> Action:
-        return None
+    @abstractmethod
+    def next_action(self, actions:List[Action]) -> Action:
+        pass
 
     def valid(self, x:int, y:int) -> bool:
         if not self.alive:
