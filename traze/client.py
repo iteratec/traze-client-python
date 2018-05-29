@@ -7,9 +7,9 @@ class NotConnected(TimeoutError):
     pass
 
 class Base:
-    def __init__(self, parent, adapter:TrazeMqttAdapter=None, name:str=None):
+    def __init__(self, parent=None, name:str=None):
+        self.__adapter__ = None
         self._parent = parent
-        self.__adapter__:TrazeMqttAdapter = adapter
         self._name = name or self.__class__.__name__
 
     @property
@@ -159,8 +159,9 @@ class Game(Base):
         return self._grid
 
 class World(Base):
-    def __init__(self):
-        super().__init__(None, adapter=TrazeMqttAdapter()) 
+    def __init__(self, adapter=TrazeMqttAdapter()):
+        super().__init__()
+        self.__adapter__ = adapter
         self.__games__:Dict[Game] = dict()
 
         def add_game(name:str):

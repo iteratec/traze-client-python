@@ -2,10 +2,10 @@ import time
 import random
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
-from typing import List
+from typing import Set
 
 from .adapter import TrazeMqttAdapter
-from .game import World, Game, Grid, Player
+from .client import World, Game, Grid, Player
 
 @unique
 class Action(Enum):
@@ -48,17 +48,17 @@ class BotBase(Player, metaclass=ABCMeta):
         return self
 
     @property
-    def actions(self) -> set:
+    def actions(self) -> Set[Action]:
         # print("# actions at", self.x, self.y)
-        validActions:list = list()
+        validActions:Set[Action] = set()
         for action in list(Action):
             if self.valid(self.x + action.dX, self.y + action.dY):
-                validActions.append(action)
+                validActions.add(action)
 
         return validActions
 
     @abstractmethod
-    def next_action(self, actions:List[Action]) -> Action:
+    def next_action(self, actions:Set[Action]) -> Action:
         pass
 
     def valid(self, x:int, y:int) -> bool:
