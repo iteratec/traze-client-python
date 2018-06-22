@@ -1,1 +1,1 @@
-from .traze import TrazeMqttAdapter
+from .traze import adapter
