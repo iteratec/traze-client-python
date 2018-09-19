@@ -14,6 +14,3 @@
 
 __project__ = 'traze'
 __version__ = "1.1.0-snapshot"
-
-from .bot import *
-from .adapter import *

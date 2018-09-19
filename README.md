@@ -1,5 +1,5 @@
 # Traze Client Python
-A Traze client based on Python 3.6.
+A Traze client based on Python 3.5.
 
 ## Install
 pip install -e .
@@ -9,4 +9,3 @@ Traze is a simple tron-like multi client online game serving as a playground for
 
 ## Hosted by iteratec
 You can join a hosted instance at [traze.iteratec.de](https://traze.iteratec.de).
-
