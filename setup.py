@@ -19,7 +19,6 @@ setup(
     long_description=read('README.md'),
 
     packages=find_packages('traze'),
-    package_dir={'': 'traze'},
 
     # project uses MQTT
     install_requires=['paho-mqtt==1.3.1'],
