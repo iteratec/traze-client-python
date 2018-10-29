@@ -74,7 +74,7 @@ class Player(Base):
             self._secret = payload['secretUserToken']
             self._x, self._y = payload['position']
 
-            logger.info("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
+            logger.debug("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
 
         def on_players(payload):
             alive = False
