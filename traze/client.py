@@ -75,6 +75,7 @@ class Player(Base):
             self._x, self._y = payload['position']
 
             logger.debug("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
+            on_update()
 
         def on_players(payload):
             alive = False
@@ -83,9 +84,6 @@ class Player(Base):
                     alive = True
                     break
             self._alive = alive
-
-            if alive and on_update:
-                on_update()
 
         def on_grid(payload):
             if not self._alive:
