@@ -39,12 +39,12 @@ class BotBase(Player, metaclass=ABCMeta):
     def play(self, count=1):
         for i in range(1, count + 1):
             self.join()
-            logger.info("start game", i)
+            logger.info("start game {}", i)
 
             # wait for death
             while(self.alive):
                 time.sleep(0.5)
-            logger.info("end game", i)
+            logger.info("end game {}", i)
 
         return self
 
