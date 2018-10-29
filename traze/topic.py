@@ -24,7 +24,6 @@ class MqttTopic:
         def on_message(client, userdata, message):
             payload = json.loads(str(message.payload, 'utf-8'))
             for on_payload in self.functions:
-                # print("  call %s at %s" % (on_payload, self._name))
                 on_payload(payload)
 
         if not self.functions:
@@ -35,5 +34,4 @@ class MqttTopic:
             self.functions.add(on_payload_func)
 
     def publish(self, obj=None):
-        # print("# publish ", self._name, 'at', obj)
         self._client.publish(self._name, json.dumps(obj))

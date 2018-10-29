@@ -1,7 +1,10 @@
 import time
+import logging
 
 from .adapter import TrazeMqttAdapter
 
+
+logger = logging.getLogger('Client')
 
 class NotConnected(TimeoutError):
     pass
@@ -63,7 +66,7 @@ class Player(Base):
 
     def join(self, on_update):  # noqa: C901 - is too complex (15)
         if self._alive:
-            print("Player '%s' is already alive!" % (self.name))
+            logger.info("Player '%s' is already alive!" % (self.name))
             return
 
         def on_join(payload):
@@ -71,7 +74,7 @@ class Player(Base):
             self._secret = payload['secretUserToken']
             self._x, self._y = payload['position']
 
-            print("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
+            logger.info("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
 
         def on_players(payload):
             alive = False

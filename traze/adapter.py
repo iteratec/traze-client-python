@@ -1,5 +1,6 @@
 import uuid
 import functools
+import logging
 import paho.mqtt.client as mqtt
 
 from .topic import MqttTopic
@@ -8,12 +9,13 @@ __all__ = [
     "TrazeMqttAdapter"
 ]
 
+logger = logging.getLogger('TrazeMqttAdapter')
 
 class TrazeMqttAdapter:
 
     def __init__(self, host='traze.iteratec.de', port=8883, transport='tcp'):
         def _on_connect(client, userdata, flags, rc):
-            print("Connected to MQTT broker.")
+            logger.info("Connected to MQTT broker.")
             self.connected = True
 
         self.connected = False

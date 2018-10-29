@@ -1,10 +1,12 @@
 import time
+import logging
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
 
 from .client import Player
 
 
+logger = logging.getLogger('Bot')
 @unique
 class Action(Enum):
     N = (0, 1)
@@ -32,23 +34,22 @@ class BotBase(Player, metaclass=ABCMeta):
                 self.steer(nextAction)
 
         super().join(on_update)
-        print("Bot joined")
+        logger.info("Bot joined")
 
     def play(self, count=1):
         for i in range(1, count + 1):
             self.join()
-            print("start game", i)
+            logger.info("start game", i)
 
             # wait for death
             while(self.alive):
                 time.sleep(0.5)
-            print("end game", i)
+            logger.info("end game", i)
 
         return self
 
     @property
     def actions(self):
-        # print("# actions at", self.x, self.y)
         validActions = set()
         for action in list(Action):
             if self.valid(self.x + action.dX, self.y + action.dY):
