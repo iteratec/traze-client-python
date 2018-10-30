@@ -64,11 +64,6 @@ class Player(Base):
         self._secret = ''
         self._last = [self._x, self._y]
 
-    def join(self, on_update):  # noqa: C901 - is too complex (15)
-        if self._alive:
-            logger.info("Player '%s' is already alive!" % (self.name))
-            return
-
         def on_join(payload):
             self._id = payload['id']
             self._secret = payload['secretUserToken']
@@ -105,6 +100,11 @@ class Player(Base):
         self.adapter.on_grid(self.game.name, on_grid)
         self.adapter.on_player_info(self.game.name, on_join)
         self.adapter.on_players(self.game.name, on_players)
+
+    def join(self, on_update):  # noqa: C901 - is too complex (15)
+        if self._alive:
+            logger.info("Player '%s' is already alive!" % (self.name))
+            return
 
         # send join and wait for player
         self.adapter.publish_join(self.game.name, self.name)
