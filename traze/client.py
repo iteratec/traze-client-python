@@ -56,7 +56,7 @@ class Grid(Base):
 
 
 class Player(Base):
-    def __init__(self, game, name):
+    def __init__(self, game, name, on_update):
         super().__init__(game, name=name)
         self._alive = False
         self._x, self._y = [-1, -1]
@@ -101,7 +101,7 @@ class Player(Base):
         self.adapter.on_player_info(self.game.name, on_join)
         self.adapter.on_players(self.game.name, on_players)
 
-    def join(self, on_update):  # noqa: C901 - is too complex (15)
+    def join(self):  # noqa: C901 - is too complex (15)
         if self._alive:
             logger.info("Player '%s' is already alive!" % (self.name))
             return

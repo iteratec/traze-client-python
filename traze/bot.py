@@ -25,15 +25,15 @@ class Action(Enum):
 
 class BotBase(Player, metaclass=ABCMeta):
     def __init__(self, game, name=None):
-        super().__init__(game, name)
-
-    def join(self):
         def on_update():
             nextAction = self.next_action(self.actions)
             if nextAction:
                 self.steer(nextAction)
+        super().__init__(game, name, on_update)
 
-        super().join(on_update)
+    def join(self):
+
+        super().join()
         logger.info("Bot joined")
 
     def play(self, count=1):
