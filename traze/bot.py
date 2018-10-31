@@ -3,7 +3,7 @@ import logging
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
 
-from .client import Player
+from .client import Player, NotConnected
 
 
 logger = logging.getLogger('Bot')
@@ -36,15 +36,21 @@ class BotBase(Player, metaclass=ABCMeta):
         super().join()
         logger.info("Bot joined")
 
-    def play(self, count=1):
+    def play(self, count=1, suppress_server_timeout=False):
         for i in range(1, count + 1):
-            self.join()
-            logger.info("start game {}".format(i))
+            try:
+                self.join()
+                logger.info("start game {}".format(i))
 
-            # wait for death
-            while(self.alive):
-                time.sleep(0.5)
-            logger.info("end game {}".format(i))
+                # wait for death
+                while(self.alive):
+                    time.sleep(0.5)
+                logger.info("end game {}".format(i))
+            except NotConnected as e:
+                if suppress_server_timeout:
+                    logger.warn("Timeout exceeded while waiting for join-response from server. This will be ignored.")
+                else:
+                    raise e
 
         return self
 
