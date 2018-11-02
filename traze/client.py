@@ -1,10 +1,8 @@
 import time
-import logging
+from .log import setup_custom_logger
 
 from .adapter import TrazeMqttAdapter
 
-
-logger = logging.getLogger('Client')
 
 class NotConnected(TimeoutError):
     pass
@@ -12,6 +10,8 @@ class NotConnected(TimeoutError):
 
 class Base:
     def __init__(self, parent=None, name=None):
+        self.logger = setup_custom_logger(name=type(self).__name__)
+
         self.__adapter__ = None
         self._parent = parent
         self._name = name or self.__class__.__name__
@@ -69,7 +69,7 @@ class Player(Base):
             self._secret = payload['secretUserToken']
             self._x, self._y = payload['position']
 
-            logger.debug("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
+            self.logger.debug("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
             on_update()
 
         def on_players(payload):
@@ -93,7 +93,7 @@ class Player(Base):
             if myBike:
                 self._x, self._y = myBike['currentLocation']
 
-            if on_update and self._last != [self._x, self._y]:
+            if self._last != [self._x, self._y]:
                 on_update()
                 self._last = [self._x, self._y]
 
@@ -103,7 +103,7 @@ class Player(Base):
 
     def join(self):  # noqa: C901 - is too complex (15)
         if self._alive:
-            logger.info("Player '%s' is already alive!" % (self.name))
+            self.logger.info("Player '%s' is already alive!" % (self.name))
             return
 
         # send join and wait for player

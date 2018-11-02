@@ -1,12 +1,10 @@
 import time
-import logging
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
 
 from .client import Player, NotConnected
 
 
-logger = logging.getLogger('Bot')
 @unique
 class Action(Enum):
     N = (0, 1)
@@ -29,26 +27,22 @@ class BotBase(Player, metaclass=ABCMeta):
             nextAction = self.next_action(self.actions)
             if nextAction:
                 self.steer(nextAction)
+
         super().__init__(game, name, on_update)
-
-    def join(self):
-
-        super().join()
-        logger.info("Bot joined")
 
     def play(self, count=1, suppress_server_timeout=False):
         for i in range(1, count + 1):
             try:
                 self.join()
-                logger.info("start game {}".format(i))
+                self.logger.info("start game {}".format(i))
 
                 # wait for death
                 while(self.alive):
                     time.sleep(0.5)
-                logger.info("end game {}".format(i))
+                self.logger.info("end game {}".format(i))
             except NotConnected as e:
                 if suppress_server_timeout:
-                    logger.warn("Timeout exceeded while waiting for join-response from server. This will be ignored.")
+                    self.logger.warn("Timeout exceeded while waiting for join-response from server. This will be ignored.")
                 else:
                     raise e
 

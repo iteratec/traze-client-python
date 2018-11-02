@@ -34,4 +34,4 @@ class RandomBot(BotBase):
 
 
 if __name__ == "__main__":
-    RandomBot(World().games[0]).play(1)
+    RandomBot(World().games[0]).play(3)
