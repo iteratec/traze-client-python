@@ -12,7 +12,7 @@ setup(
     author="Danny Lade",
     author_email="dannylade@gmail.com",
     description=("A client for the simple tron-like multi client online game called 'Traze' which is using MQTT for communication."),
-    license="LGPL",
+    license="Apache",
     keywords="traze client game tron-like",
     url="https://github.com/iteratec/traze-client-python",
     location="https://github.com/iteratec/traze-client-python",
@@ -20,7 +20,6 @@ setup(
 
     packages=find_packages('traze'),
 
-    # project uses MQTT
     install_requires=[
         'python_version>="3.5"',
         'paho-mqtt==1.4.0',
@@ -33,3 +32,4 @@ setup(
         "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",
     ],
 )
+
