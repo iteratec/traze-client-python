@@ -21,11 +21,15 @@ setup(
     packages=find_packages('traze'),
 
     # project uses MQTT
-    install_requires=['paho-mqtt==1.3.1'],
+    install_requires=[
+        'python_version>="3.5"',
+        'paho-mqtt==1.4.0',
+    ],
 
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Topic :: Games/Entertainment :: Simulation",
+        "Programming Language :: Python :: 3.5",
         "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",
     ],
 )
