@@ -164,9 +164,9 @@ class Game(Base):
 
 
 class World(Base):
-    def __init__(self, adapter=TrazeMqttAdapter()):
+    def __init__(self, adapter=None):
         super().__init__()
-        self.__adapter__ = adapter
+        self.__adapter__ = adapter if adapter else TrazeMqttAdapter()
         self.__games__ = dict()
 
         def add_game(name):
