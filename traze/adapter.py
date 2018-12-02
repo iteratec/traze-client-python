@@ -17,16 +17,45 @@
 @author: Danny Lade
 """
 import uuid
+import json
 import functools
 
 import paho.mqtt.client as mqtt
 
 from .log import setup_custom_logger
-from .topic import MqttTopic
 
 __all__ = [
     "TrazeMqttAdapter"
 ]
+
+
+class MqttTopic:
+
+    def __init__(self, client, name, *args):
+        def topic_name(topicName, *args):
+            if not args:
+                return topicName
+            return topicName.replace('+', '%s') % (args)
+
+        self._client = client
+        self._name = topic_name(name, *args)
+        self.functions = set()
+
+    def subscribe(self, on_payload_func):
+        def on_message(client, userdata, message):
+            payload = json.loads(str(message.payload, 'utf-8'))
+            for on_payload in self.functions:
+                on_payload(payload)
+
+        if not self.functions:
+            self._client.subscribe(self._name)
+            self._client.message_callback_add(self._name, on_message)
+
+        if on_payload_func not in self.functions:
+            self.functions.add(on_payload_func)
+
+    def publish(self, obj=None):
+        self._client.publish(self._name, json.dumps(obj))
 
 
 class TrazeMqttAdapter:
@@ -81,6 +110,6 @@ class TrazeMqttAdapter:
     def disconnect(self):
         self._client.disconnect()
 
-    @functools.lru_cache()
+    @functools.lru_cache()  # singleton by parameter (for same arguments always return the same object)
     def __get_topic__(self, topic_name, *args):
         return MqttTopic(self._client, topic_name, *args)
