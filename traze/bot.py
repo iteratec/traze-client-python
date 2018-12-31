@@ -1,3 +1,4 @@
+import sys
 import time
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
@@ -46,7 +47,7 @@ class BotBase(Player, metaclass=ABCMeta):
                 else:
                     raise e
 
-        return self
+        self.destroy()
 
     @property
     def actions(self):

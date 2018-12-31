@@ -58,13 +58,11 @@ class Grid(Base):
 class Player(Base):
     def __init__(self, game, name, on_update):
         super().__init__(game, name=name)
-        self._alive = False
-        self._x, self._y = [-1, -1]
-        self._id = None
-        self._secret = ''
-        self._last = [self._x, self._y]
+        self.__reset__()
 
         def on_join(payload):
+            self.__reset__()
+
             self._id = payload['id']
             self._secret = payload['secretUserToken']
             self._x, self._y = payload['position']
@@ -75,10 +73,13 @@ class Player(Base):
         def on_players(payload):
             alive = False
             for player in payload:
-                if (player['id'] == self._id):
+                if (player['id'] == self._id) and (player['name'] == self.name):
                     alive = True
                     break
             self._alive = alive
+
+        def on_ticker(payload):
+            self.logger.info("Ticker: %s" % (payload))
 
         def on_grid(payload):
             if not self._alive:
@@ -100,6 +101,7 @@ class Player(Base):
         self.adapter.on_grid(self.game.name, on_grid)
         self.adapter.on_player_info(self.game.name, on_join)
         self.adapter.on_players(self.game.name, on_players)
+        self.adapter.on_ticker(self.game.name, on_ticker)
 
     def join(self):  # noqa: C901 - is too complex (15)
         if self._alive:
@@ -138,12 +140,22 @@ class Player(Base):
         self.adapter.publish_steer(self.game.name, self._id, self._secret, course)
 
     def bail(self):
-        self._alive = False
+        self.logger.info("bail: %s (%d)" % (self.game.name, self._id))
         self.adapter.publish_bail(self.game.name, self._id, self._secret)
+        self.__reset__()
 
-        self._x, self._y = [-1, -1]
+    def destroy(self):
+        if self._id and self._secret:
+            self.bail()
+
+        self.adapter.disconnect()
+
+    def __reset__(self):
         self._id = None
-        self._secret = ''
+        self._secret = None
+        self._alive = False
+        self._x, self._y = [-1, -1]
+        self._last = [self._x, self._y]
 
     def __str__(self):
         return "%s(name=%s, id=%s, x=%d, y=%d)" % (self.__class__.__name__, self.name, self._id, self._x, self._y)
@@ -166,6 +178,7 @@ class Game(Base):
 class World(Base):
     def __init__(self, adapter=None):
         super().__init__()
+
         self.__adapter__ = adapter if adapter else TrazeMqttAdapter()
         self.__games__ = dict()
 

@@ -17,14 +17,17 @@ class TrazeMqttAdapter:
         self.logger = setup_custom_logger(name=type(self).__name__)
 
         def _on_connect(client, userdata, flags, rc):
-            self.logger.info("Connected to MQTT broker.")
-            self.connected = True
+            self.logger.info("Connected the MQTT broker.")
 
-        self.connected = False
+        def _on_disconnect(client, userdata, rc):
+            self.logger.info("Disconnected the MQTT broker.")
+            self._client.loop_stop()
 
         self.__client_id__ = str(uuid.uuid4())
         self._client = mqtt.Client(client_id=self.__client_id__, transport=transport)
         self._client.on_connect = _on_connect
+        self._client.on_disconnect = _on_disconnect
+
         self._client.tls_set_context()
         self._client.connect(host, port)
         self._client.loop_start()
@@ -53,10 +56,9 @@ class TrazeMqttAdapter:
     def publish_bail(self, game_name, player_id, player_token):
         self.__get_topic__('traze/+/+/bail', game_name, player_id).publish({'playerToken': player_token})
 
+    def disconnect(self):
+        self._client.disconnect()
+
     @functools.lru_cache()
     def __get_topic__(self, topic_name, *args):
         return MqttTopic(self._client, topic_name, *args)
-
-    def destroy(self):
-        self._client.loop_stop()
-        self._client.disconnect()
