@@ -66,29 +66,28 @@ class Player(Base):
             self._id = payload['id']
             self._secret = payload['secretUserToken']
             self._x, self._y = payload['position']
+            self._alive = True
 
-            self.logger.debug("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
+            self.logger.info("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
             on_update()
 
-        def on_players(payload):
-            alive = False
-            for player in payload:
-                if (player['id'] == self._id) and (player['name'] == self.name):
-                    alive = True
-                    break
-            self._alive = alive
-
         def on_ticker(payload):
-            self.logger.info("Ticker: %s" % (payload))
+            # not my cup of tea
+            if self._id not in (payload['casualty'], payload['fragger']):
+                return
+
+            self.logger.debug("ticker: %s" % (payload))
+
+            if payload['casualty'] == self._id or payload['type'] == 'collision':
+                self._alive = False
 
         def on_grid(payload):
-            if not self._alive:
+            if not self.alive:
                 return
 
             myBike = None
             for bike in payload['bikes']:
-                bike_id = bike['playerId']
-                if (bike_id == self._id):
+                if (bike['playerId'] == self._id):
                     myBike = bike
 
             if myBike:
@@ -100,18 +99,17 @@ class Player(Base):
 
         self.adapter.on_grid(self.game.name, on_grid)
         self.adapter.on_player_info(self.game.name, on_join)
-        self.adapter.on_players(self.game.name, on_players)
         self.adapter.on_ticker(self.game.name, on_ticker)
 
     def join(self):  # noqa: C901 - is too complex (15)
-        if self._alive:
+        if self.alive:
             self.logger.info("Player '%s' is already alive!" % (self.name))
             return
 
         # send join and wait for player
         self.adapter.publish_join(self.game.name, self.name)
         for _ in range(30):
-            if self._alive:
+            if self.alive:
                 return self
             time.sleep(0.5)
         raise NotConnected()
@@ -126,13 +124,13 @@ class Player(Base):
 
     @property
     def x(self):
-        if self._alive:
+        if self.alive:
             return self._x
         return -1
 
     @property
     def y(self):
-        if self._alive:
+        if self.alive:
             return self._y
         return -1
 
@@ -140,7 +138,7 @@ class Player(Base):
         self.adapter.publish_steer(self.game.name, self._id, self._secret, course)
 
     def bail(self):
-        self.logger.info("bail: %s (%d)" % (self.game.name, self._id))
+        self.logger.debug("bail: %s (%d)" % (self.game.name, self._id))
         self.adapter.publish_bail(self.game.name, self._id, self._secret)
         self.__reset__()
 
