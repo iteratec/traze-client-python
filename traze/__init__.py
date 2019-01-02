@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+#
 # Copyright 2018 The Traze Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+@author: Danny Lade
+"""
 
 __project__ = 'traze'
-__version__ = "1.1.0-snapshot"
+__version__ = "1.2.0-snapshot"

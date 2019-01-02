@@ -1,4 +1,21 @@
-import sys
+# -*- coding: utf-8 -*-
+#
+# Copyright 2018 The Traze Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+@author: Danny Lade
+"""
 import time
 from abc import ABCMeta, abstractmethod
 from enum import Enum, unique
@@ -19,15 +36,18 @@ class Action(Enum):
         self.index = len(self.__class__.__members__)
 
     def __repr__(self):
-        return "%s %d: %s" % (str(self), self.index, self.value)
+        return "{} {}: {}".format(str(self), self.index, self.value)
 
 
 class BotBase(Player, metaclass=ABCMeta):
     def __init__(self, game, name=None):
         def on_update():
-            nextAction = self.next_action(self.actions)
-            if nextAction:
-                self.steer(nextAction)
+            next_action = None
+            actions = self.actions
+            if actions:
+                next_action = self.next_action(actions)
+            if next_action:
+                self.steer(next_action)
 
         super().__init__(game, name, on_update)
 
@@ -43,7 +63,7 @@ class BotBase(Player, metaclass=ABCMeta):
                 self.logger.info("end game {}".format(i))
             except NotConnected as e:
                 if suppress_server_timeout:
-                    self.logger.warn("Timeout exceeded while waiting for join-response from server. This will be ignored.")
+                    self.logger.warn("Timeout exceeded while waiting for join-response from server. This will be ignored.")  # noqa
                 else:
                     raise e
 
@@ -51,29 +71,23 @@ class BotBase(Player, metaclass=ABCMeta):
 
     @property
     def actions(self):
-        validActions = set()
+        valid_actions = set()
         for action in list(Action):
             if self.valid(self.x + action.dX, self.y + action.dY):
-                validActions.add(action)
+                valid_actions.add(action)
 
-        return validActions
+        return tuple(valid_actions)
 
     @abstractmethod
     def next_action(self, actions):
         """
         Args:
-            actions (Set[Action]): All possible actions.
+            actions (Tuple[Action]): All possible actions.
 
         Returns:
             Action: Next action.
         """
         pass
 
-    def valid(self, x, y):
-        if not self.alive:
-            return False
-        return self.game.grid.valid(x, y)
-
     def steer(self, action):
-        # action darf None sein
         action and super().steer(action.name)
