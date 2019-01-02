@@ -1,4 +1,23 @@
+# -*- coding: utf-8 -*-
+#
+# Copyright 2018 The Traze Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""
+@author: Danny Lade
+"""
 import time
+import copy
 from .log import setup_custom_logger
 
 from .adapter import TrazeMqttAdapter
@@ -35,15 +54,16 @@ class Grid(Base):
         self.width = 0
         self.height = 0
         self.tiles = [[]]
+        self.bike_positions = {}
 
-    def join(self):
         def on_grid(payload):
             self.width = payload['width']
             self.height = payload['height']
-            self.tiles = payload['tiles'][:]
+            self.tiles = copy.deepcopy(payload['tiles'])
+            for bike in payload['bikes']:
+                self.bike_positions[bike['playerId']] = tuple(bike['currentLocation'])  # noqa
 
         self.adapter.on_grid(self.game.name, on_grid)
-        return self
 
     @property
     def game(self):
@@ -58,58 +78,71 @@ class Grid(Base):
 class Player(Base):
     def __init__(self, game, name, on_update):
         super().__init__(game, name=name)
-        self._alive = False
-        self._x, self._y = [-1, -1]
         self._id = None
-        self._secret = ''
-        self._last = [self._x, self._y]
+        self._secret = None
+        self._alive = False
+        self.last_course = None
+        self._x, self._y = [-1, -1]
 
         def on_join(payload):
             self._id = payload['id']
             self._secret = payload['secretUserToken']
             self._x, self._y = payload['position']
 
-            self.logger.debug("Welcome '%s' (%s) at [%d, %d]!\n" % (self.name, self._id, self._x, self._y))
-            on_update()
+            self.logger.info("Welcome '{}' ({}) at {}!\n".format(self.name, self._id, (self._x, self._y)))  # noqa
+            update_alive(True)  # very first call, if born
 
-        def on_players(payload):
-            alive = False
-            for player in payload:
-                if (player['id'] == self._id):
-                    alive = True
-                    break
-            self._alive = alive
-
-        def on_grid(payload):
-            if not self._alive:
+        def on_ticker(payload):
+            if not self.alive:
                 return
 
-            myBike = None
-            for bike in payload['bikes']:
-                bike_id = bike['playerId']
-                if (bike_id == self._id):
-                    myBike = bike
+            # not my cup of tea
+            if self._id not in (payload['casualty'], payload['fragger']):
+                return
 
-            if myBike:
-                self._x, self._y = myBike['currentLocation']
+            self.logger.debug("ticker: {}".format(payload))
 
-            if self._last != [self._x, self._y]:
-                on_update()
-                self._last = [self._x, self._y]
+            if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
+                # TODO - workaround: sometimes "the (ticker-) cake is a lie"
+                valid = False
+                for offset in ((0, 0), (0, 1), (1, 0), (0, -1), (-1, 0)):
+                    dx, dy = offset
+                    valid |= self.game.grid.valid(self._x + dx, self._y + dy)
 
-        self.adapter.on_grid(self.game.name, on_grid)
+                if not valid:
+                    update_alive(False)  # very last call, if died
+                else:
+                    self.logger.warn("ignored false ticker! - {}".format(payload))  # noqa
+
+        def on_heartbeat(payload):
+            if not self.alive:
+                return
+
+            bike_position = self.game.grid.bike_positions.get(self._id)
+            if bike_position:
+                self._x, self._y = bike_position
+                on_update()  # call if heartbeat
+
+        def update_alive(alive):
+            self._alive = alive
+            on_update()
+
+            if not alive:
+                self.__reset__()
+
         self.adapter.on_player_info(self.game.name, on_join)
-        self.adapter.on_players(self.game.name, on_players)
+        self.adapter.on_ticker(self.game.name, on_ticker)
+        self.adapter.on_heartbeat(self.game.name, on_heartbeat)
 
-    def join(self):  # noqa: C901 - is too complex (15)
-        if self._alive:
-            self.logger.info("Player '%s' is already alive!" % (self.name))
+    def join(self):
+        if self.alive:
+            self.logger.info("Player '{}' is already alive!".format(self.name))
             return
 
         # send join and wait for player
         self.adapter.publish_join(self.game.name, self.name)
         for _ in range(30):
-            if self._alive:
+            if self.alive:
                 return self
             time.sleep(0.5)
         raise NotConnected()
@@ -124,35 +157,53 @@ class Player(Base):
 
     @property
     def x(self):
-        if self._alive:
+        if self.alive:
             return self._x
         return -1
 
     @property
     def y(self):
-        if self._alive:
+        if self.alive:
             return self._y
         return -1
 
+    def valid(self, x, y):
+        if not self.alive:
+            return False
+        return self.game.grid.valid(x, y)
+
     def steer(self, course):
-        self.adapter.publish_steer(self.game.name, self._id, self._secret, course)
+        if course != self.last_course:
+            self.last_course = course
+            self.logger.debug("steer {}".format(course))
+            self.adapter.publish_steer(self.game.name, self._id, self._secret, course)  # noqa
 
     def bail(self):
-        self._alive = False
+        self.logger.debug("bail: {} ({})".format(self.game.name, self._id))
         self.adapter.publish_bail(self.game.name, self._id, self._secret)
+        self.__reset__()
 
-        self._x, self._y = [-1, -1]
+    def destroy(self):
+        if self._id and self._secret:
+            self.bail()
+
+        self.adapter.disconnect()
+
+    def __reset__(self):
         self._id = None
-        self._secret = ''
+        self._secret = None
+        self._alive = False
+        self.last_course = None
+        self._x, self._y = [-1, -1]
 
     def __str__(self):
-        return "%s(name=%s, id=%s, x=%d, y=%d)" % (self.__class__.__name__, self.name, self._id, self._x, self._y)
+        return "{}(name={}, id={}, x={}, y={})".format(self.__class__.__name__, self.name, self._id, self._x, self._y)  # noqa
 
 
 class Game(Base):
     def __init__(self, world, name):
         super().__init__(world, name=name)
-        self._grid = Grid(self).join()
+        self._grid = Grid(self)
 
     @property
     def world(self):
@@ -166,6 +217,7 @@ class Game(Base):
 class World(Base):
     def __init__(self, adapter=None):
         super().__init__()
+
         self.__adapter__ = adapter if adapter else TrazeMqttAdapter()
         self.__games__ = dict()
 
