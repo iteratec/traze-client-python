@@ -78,11 +78,7 @@ class Grid(Base):
 class Player(Base):
     def __init__(self, game, name, on_update):
         super().__init__(game, name=name)
-        self._id = None
-        self._secret = None
-        self._alive = False
-        self.last_course = None
-        self._x, self._y = [-1, -1]
+        self.__reset__()
 
         def on_join(payload):
             self._id = payload['id']
@@ -103,16 +99,7 @@ class Player(Base):
             self.logger.debug("ticker: {}".format(payload))
 
             if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
-                # TODO - workaround: sometimes "the (ticker-) cake is a lie"
-                valid = False
-                for offset in ((0, 0), (0, 1), (1, 0), (0, -1), (-1, 0)):
-                    dx, dy = offset
-                    valid |= self.game.grid.valid(self._x + dx, self._y + dy)
-
-                if not valid:
-                    update_alive(False)  # very last call, if died
-                else:
-                    self.logger.warn("ignored false ticker! - {}".format(payload))  # noqa
+                update_alive(False)  # very last call, if died
 
         def on_heartbeat(payload):
             if not self.alive:
@@ -133,6 +120,13 @@ class Player(Base):
         self.adapter.on_player_info(self.game.name, on_join)
         self.adapter.on_ticker(self.game.name, on_ticker)
         self.adapter.on_heartbeat(self.game.name, on_heartbeat)
+
+    def __reset__(self):
+        self._id = None
+        self._secret = None
+        self._alive = False
+        self.last_course = None
+        self._x, self._y = [-1, -1]
 
     def join(self):
         if self.alive:
@@ -188,13 +182,6 @@ class Player(Base):
             self.bail()
 
         self.adapter.disconnect()
-
-    def __reset__(self):
-        self._id = None
-        self._secret = None
-        self._alive = False
-        self.last_course = None
-        self._x, self._y = [-1, -1]
 
     def __str__(self):
         return "{}(name={}, id={}, x={}, y={})".format(self.__class__.__name__, self.name, self._id, self._x, self._y)  # noqa
