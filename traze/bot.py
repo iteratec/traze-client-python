@@ -38,6 +38,13 @@ class Action(Enum):
     def __repr__(self):
         return "{} {}: {}".format(str(self), self.index, self.value)
 
+    @classmethod
+    def from_name(cls, name):
+        for action in Action:
+            if action.name == name:
+                return action
+        raise ValueError('{} is not a valid action name'.format(name))
+
 
 class BotBase(Player, metaclass=ABCMeta):
     def __init__(self, game, name=None):
