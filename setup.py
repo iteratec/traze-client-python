@@ -44,7 +44,14 @@ setup(
     ],
 
     classifiers=[
-        "Development Status :: 5 - Production/Stable",
+        # Development Status :: 1 - Planning
+        # Development Status :: 2 - Pre-Alpha
+        # Development Status :: 3 - Alpha
+        # Development Status :: 4 - Beta
+        # Development Status :: 5 - Production/Stable
+        # Development Status :: 6 - Mature
+        # Development Status :: 7 - Inactive
+        "Development Status :: 1 - Planning",
         "Topic :: Games/Entertainment :: Simulation",
         "Programming Language :: Python :: 3.5",
         "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",  # noqa

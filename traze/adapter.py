@@ -61,7 +61,7 @@ class MqttTopic:
 class TrazeMqttAdapter:
 
     def __init__(self, host='traze.iteratec.de', port=8883, transport='tcp'):
-        self.logger = setup_custom_logger(name=type(self).__name__)
+        self.logger = setup_custom_logger(self)
 
         def _on_connect(client, userdata, flags, rc):
             self.logger.info("Connected the MQTT broker.")
@@ -79,16 +79,17 @@ class TrazeMqttAdapter:
         self._client.connect(host, port)
         self._client.loop_start()
 
-    def on_heartbeat(self, game_name, on_heartbeat):
-        # there is no heartbeat from server but the grid-event is a good base
-        self.__get_topic__('traze/+/grid', game_name).subscribe(on_heartbeat)
-
+    #
+    # world based topic(s)
+    # - parameters: None
+    #
     def on_game_info(self, on_game_info):
         self.__get_topic__('traze/games').subscribe(on_game_info)
 
-    def on_player_info(self, game_name, on_player_info):
-        self.__get_topic__('traze/+/player/+', game_name, self.__client_id__).subscribe(on_player_info)  # noqa
-
+    #
+    # game based topic(s)
+    # - parameters: game_name
+    #
     def on_grid(self, game_name, on_grid):
         self.__get_topic__('traze/+/grid', game_name).subscribe(on_grid)
 
@@ -98,6 +99,13 @@ class TrazeMqttAdapter:
     def on_ticker(self, game_name, on_ticker):
         self.__get_topic__('traze/+/ticker', game_name).subscribe(on_ticker)
 
+    def on_player_info(self, game_name, on_player_info):
+        self.__get_topic__('traze/+/player/+', game_name, self.__client_id__).subscribe(on_player_info)  # noqa
+
+    #
+    # player based topic(s)
+    # - parameters: game_name, player_id/player_name
+    #
     def publish_join(self, game_name, player_name):
         self.__get_topic__('traze/+/join', game_name).publish({'name': player_name, 'mqttClientName': self.__client_id__})  # noqa
 
