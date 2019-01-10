@@ -37,7 +37,7 @@ class PlayerNotJoinedException(Exception):
 
 class Base:
     def __init__(self, parent=None, name=None):
-        self.logger = setup_custom_logger(name=type(self).__name__)
+        self.logger = setup_custom_logger(self)
 
         self.__adapter__ = None
         self._parent = parent
@@ -95,7 +95,7 @@ class Player(Base):
             self._alive = True
             on_update()  # very first call, if born
 
-        def on_heartbeat(payload):
+        def on_grid(payload):
             if not self.alive:
                 return
             self.game.grid.update_grid(payload)
@@ -120,7 +120,7 @@ class Player(Base):
 
         self.adapter.on_player_info(self.game.name, on_join)
         self.adapter.on_ticker(self.game.name, on_ticker)
-        self.adapter.on_heartbeat(self.game.name, on_heartbeat)
+        self.adapter.on_grid(self.game.name, on_grid)
 
     def __reset__(self):
         self._id = None

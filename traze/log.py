@@ -27,13 +27,13 @@ ROOT_LOGGER = logging.getLogger()
 ROOT_LOGGER.handlers = []
 
 
-def setup_custom_logger(name, level=logging.INFO):
+def setup_custom_logger(obj, level=logging.INFO):
     formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(message)s')  # noqa
 
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
 
-    logger = logging.getLogger(name)
+    logger = logging.getLogger(type(obj).__name__)
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
