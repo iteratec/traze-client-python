@@ -27,6 +27,14 @@ class NotConnected(TimeoutError):
     pass
 
 
+class TileOutOfBoundsException(Exception):
+    pass
+
+
+class PlayerNotJoinedException(Exception):
+    pass
+
+
 class Base:
     def __init__(self, parent=None, name=None):
         self.logger = setup_custom_logger(name=type(self).__name__)
@@ -56,23 +64,21 @@ class Grid(Base):
         self.tiles = [[]]
         self.bike_positions = {}
 
-        def on_grid(payload):
-            self.width = payload['width']
-            self.height = payload['height']
-            self.tiles = copy.deepcopy(payload['tiles'])
-            for bike in payload['bikes']:
-                self.bike_positions[bike['playerId']] = tuple(bike['currentLocation'])  # noqa
-
-        self.adapter.on_grid(self.game.name, on_grid)
+    def update_grid(self, payload):
+        self.width = payload['width']
+        self.height = payload['height']
+        self.tiles = copy.deepcopy(payload['tiles'])
+        for bike in payload['bikes']:
+            self.bike_positions[bike['playerId']] = tuple(bike['currentLocation'])  # noqa
 
     @property
     def game(self):
         return self._parent
 
-    def valid(self, x, y):
+    def get_tile(self, x, y):
         if (x < 0 or x >= self.width or y < 0 or y >= self.height):
-            return False
-        return self.tiles[x][y] == 0
+            raise TileOutOfBoundsException
+        return self.tiles[x][y]
 
 
 class Player(Base):
@@ -86,7 +92,18 @@ class Player(Base):
             self._x, self._y = payload['position']
 
             self.logger.info("Welcome '{}' ({}) at {}!\n".format(self.name, self._id, (self._x, self._y)))  # noqa
-            update_alive(True)  # very first call, if born
+            self._alive = True
+            on_update()  # very first call, if born
+
+        def on_heartbeat(payload):
+            if not self.alive:
+                return
+            self.game.grid.update_grid(payload)
+
+            bike_position = self.game.grid.bike_positions.get(self._id)
+            if bike_position:
+                self._x, self._y = bike_position
+                on_update()  # call if heartbeat
 
         def on_ticker(payload):
             if not self.alive:
@@ -99,22 +116,6 @@ class Player(Base):
             self.logger.debug("ticker: {}".format(payload))
 
             if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
-                update_alive(False)  # very last call, if died
-
-        def on_heartbeat(payload):
-            if not self.alive:
-                return
-
-            bike_position = self.game.grid.bike_positions.get(self._id)
-            if bike_position:
-                self._x, self._y = bike_position
-                on_update()  # call if heartbeat
-
-        def update_alive(alive):
-            self._alive = alive
-            on_update()
-
-            if not alive:
                 self.__reset__()
 
         self.adapter.on_player_info(self.game.name, on_join)
@@ -153,18 +154,21 @@ class Player(Base):
     def x(self):
         if self.alive:
             return self._x
-        return -1
+        else:
+            raise PlayerNotJoinedException
 
     @property
     def y(self):
         if self.alive:
             return self._y
-        return -1
+        else:
+            raise PlayerNotJoinedException
 
     def valid(self, x, y):
-        if not self.alive:
+        try:
+            return (self.game.grid.get_tile(x, y) == 0)
+        except TileOutOfBoundsException:
             return False
-        return self.game.grid.valid(x, y)
 
     def steer(self, course):
         if course != self.last_course:
@@ -175,6 +179,7 @@ class Player(Base):
     def bail(self):
         self.logger.debug("bail: {} ({})".format(self.game.name, self._id))
         self.adapter.publish_bail(self.game.name, self._id, self._secret)
+        self._alive = False
         self.__reset__()
 
     def destroy(self):
