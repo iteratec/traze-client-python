@@ -70,12 +70,18 @@ class BotBase(Player, metaclass=ABCMeta):
         self.destroy()
 
     def on_update(self):
+        self.logger.debug("on_update: {}".format((self.x, self.y)))
+
         next_action = None
         actions = self.actions
         if actions:
             next_action = self.next_action(actions)
-        if next_action:
             self.steer(next_action)
+
+    def on_dead(self):
+        self.logger.debug("on_dead: {}".format((self.x, self.y)))
+
+        return
 
     @property
     def actions(self):
@@ -84,6 +90,7 @@ class BotBase(Player, metaclass=ABCMeta):
             if self.valid(self.x + action.dX, self.y + action.dY):
                 valid_actions.add(action)
 
+        self.logger.debug("valid_actions: {}".format(valid_actions))
         return tuple(valid_actions)
 
     @abstractmethod

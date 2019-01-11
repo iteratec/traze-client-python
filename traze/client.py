@@ -57,7 +57,7 @@ class Base:
         return None
 
 
-class Grid(Base):
+class Grid(Base, metaclass=ABCMeta):
     def __init__(self, game):
         super().__init__(game)
         self.width = 0
@@ -93,18 +93,19 @@ class Player(Base, metaclass=ABCMeta):
             self._x, self._y = payload['position']
 
             self.logger.info("Welcome '{}' ({}) at {}!\n".format(self.name, self._id, (self._x, self._y)))  # noqa
-            self._alive = True
-            self.on_update()  # very first call, if born
+            self._joined = True
 
         def on_grid(payload):
-            if not self.alive:
+            if not self._joined:
                 return
             self.game.grid.update_grid(payload)
 
             bike_position = self.game.grid.bike_positions.get(self._id)
             if bike_position:
                 self._x, self._y = bike_position
-                self.on_update()  # call if heartbeat
+                self._alive = True
+
+            self.on_update()
 
         def on_ticker(payload):
             if not self.alive:
@@ -118,7 +119,9 @@ class Player(Base, metaclass=ABCMeta):
 
             if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
                 self._alive = False
+                self._joined = False
                 self.on_dead()
+
                 self.__reset__()
 
         self.adapter.on_player_info(self.game.name, on_join)
@@ -129,6 +132,7 @@ class Player(Base, metaclass=ABCMeta):
         self._id = None
         self._secret = None
         self._alive = False
+        self._joined = False
         self.last_course = None
         self._x, self._y = [-1, -1]
 
@@ -163,17 +167,11 @@ class Player(Base, metaclass=ABCMeta):
 
     @property
     def x(self):
-        if self.alive:
-            return self._x
-        else:
-            raise PlayerNotJoinedException
+        return self._x
 
     @property
     def y(self):
-        if self.alive:
-            return self._y
-        else:
-            raise PlayerNotJoinedException
+        return self._y
 
     def valid(self, x, y):
         try:
@@ -203,7 +201,7 @@ class Player(Base, metaclass=ABCMeta):
         return "{}(name={}, id={}, x={}, y={})".format(self.__class__.__name__, self.name, self._id, self._x, self._y)  # noqa
 
 
-class Game(Base):
+class Game(Base, metaclass=ABCMeta):
     def __init__(self, world, name):
         super().__init__(world, name=name)
         self._grid = Grid(self)
@@ -224,20 +222,18 @@ class World(Base):
         self.__adapter__ = adapter if adapter else TrazeMqttAdapter()
         self.__games__ = dict()
 
-        def add_game(name):
-            if name not in self.__games__:
-                self.__games__[name] = Game(self, name)
-
-        def game_info(payload):
+        def on_game_info(payload):
             for game in payload:
-                add_game(game['name'])
+                name = game['name']
+                if name not in self.__games__:
+                    self.__games__[name] = Game(self, name)
 
-        self.adapter.on_game_info(game_info)
+        self.adapter.on_game_info(on_game_info)
 
     @property
     def games(self):
         for _ in range(30):
             if self.__games__:
-                return list(self.__games__.values())
+                return tuple(self.__games__.values())
             time.sleep(0.5)
         raise NotConnected()
