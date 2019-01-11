@@ -17,23 +17,29 @@
 @author: Danny Lade
 """
 import logging
+from logging import NOTSET, DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 __all__ = [
-    "setup_custom_logger"
+    "NOTSET", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL",
+    "DEFAULT_LEVEL",
+    "setup_custom_logger",
 ]
+
+global DEFAULT_LEVEL
+DEFAULT_LEVEL = logging.INFO
 
 # make RootLogger quiet
 ROOT_LOGGER = logging.getLogger()
 ROOT_LOGGER.handlers = []
 
 
-def setup_custom_logger(obj, level=logging.INFO):
+def setup_custom_logger(obj):
     formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(message)s')  # noqa
 
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
 
     logger = logging.getLogger(type(obj).__name__)
-    logger.setLevel(level)
+    logger.setLevel(DEFAULT_LEVEL)
     logger.addHandler(handler)
     return logger
