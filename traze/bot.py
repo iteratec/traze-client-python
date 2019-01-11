@@ -47,16 +47,9 @@ class Action(Enum):
 
 
 class BotBase(Player, metaclass=ABCMeta):
-    def __init__(self, game, name=None):
-        def on_update():
-            next_action = None
-            actions = self.actions
-            if actions:
-                next_action = self.next_action(actions)
-            if next_action:
-                self.steer(next_action)
 
-        super().__init__(game, name, on_update)
+    def __init__(self, game, name=None):
+        super().__init__(game, name)
 
     def play(self, count=1, suppress_server_timeout=False):
         for i in range(1, count + 1):
@@ -75,6 +68,14 @@ class BotBase(Player, metaclass=ABCMeta):
                     raise e
 
         self.destroy()
+
+    def on_update(self):
+        next_action = None
+        actions = self.actions
+        if actions:
+            next_action = self.next_action(actions)
+        if next_action:
+            self.steer(next_action)
 
     @property
     def actions(self):

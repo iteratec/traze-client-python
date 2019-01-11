@@ -18,8 +18,9 @@
 """
 import time
 import copy
-from .log import setup_custom_logger
+from abc import ABCMeta, abstractmethod
 
+from .log import setup_custom_logger
 from .adapter import TrazeMqttAdapter
 
 
@@ -81,8 +82,8 @@ class Grid(Base):
         return self.tiles[x][y]
 
 
-class Player(Base):
-    def __init__(self, game, name, on_update):
+class Player(Base, metaclass=ABCMeta):
+    def __init__(self, game, name):
         super().__init__(game, name=name)
         self.__reset__()
 
@@ -93,7 +94,7 @@ class Player(Base):
 
             self.logger.info("Welcome '{}' ({}) at {}!\n".format(self.name, self._id, (self._x, self._y)))  # noqa
             self._alive = True
-            on_update()  # very first call, if born
+            self.on_update()  # very first call, if born
 
         def on_grid(payload):
             if not self.alive:
@@ -103,7 +104,7 @@ class Player(Base):
             bike_position = self.game.grid.bike_positions.get(self._id)
             if bike_position:
                 self._x, self._y = bike_position
-                on_update()  # call if heartbeat
+                self.on_update()  # call if heartbeat
 
         def on_ticker(payload):
             if not self.alive:
@@ -116,6 +117,8 @@ class Player(Base):
             self.logger.debug("ticker: {}".format(payload))
 
             if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
+                self._alive = False
+                self.on_dead()
                 self.__reset__()
 
         self.adapter.on_player_info(self.game.name, on_join)
@@ -141,6 +144,14 @@ class Player(Base):
                 return self
             time.sleep(0.5)
         raise NotConnected()
+
+    @abstractmethod
+    def on_update(self):
+        pass
+
+    @abstractmethod
+    def on_dead(self):
+        pass
 
     @property
     def game(self):
