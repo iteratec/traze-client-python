@@ -76,7 +76,8 @@ class Grid(Base, metaclass=ABCMeta):
     def game(self):
         return self._parent
 
-    def get_tile(self, x, y):
+    def __getitem__(self, coordinates):
+        x, y = coordinates
         if (x < 0 or x >= self.width or y < 0 or y >= self.height):
             raise TileOutOfBoundsException
         return self.tiles[x][y]
@@ -98,13 +99,14 @@ class Player(Base, metaclass=ABCMeta):
         def on_grid(payload):
             if not self._joined:
                 return
+
             self.game.grid.update_grid(payload)
 
-            bike_position = self.game.grid.bike_positions.get(self._id)
-            if bike_position:
-                self._x, self._y = bike_position
+            if self.last_course:
                 self._alive = True
+                self._x, self._y = self.game.grid.bike_positions.get(self._id, (self._x, self._y))
 
+            self.logger.debug("on_grid: position={}".format((self._x, self._y)))
             self.on_update()
 
         def on_ticker(payload):
@@ -117,7 +119,7 @@ class Player(Base, metaclass=ABCMeta):
 
             self.logger.debug("ticker: {}".format(payload))
 
-            if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
+            if payload['casualty'] == self._id or payload['type'] == 'collision':
                 self._alive = False
                 self._joined = False
                 self.on_dead()
@@ -175,20 +177,23 @@ class Player(Base, metaclass=ABCMeta):
 
     def valid(self, x, y):
         try:
-            return (self.game.grid.get_tile(x, y) == 0)
+            return (self.game.grid[x, y] == 0)
         except TileOutOfBoundsException:
             return False
 
     def steer(self, course):
-        if course != self.last_course:
-            self.last_course = course
-            self.logger.debug("steer {}".format(course))
-            self.adapter.publish_steer(self.game.name, self._id, self._secret, course)  # noqa
+        if course == self.last_course:
+            return
+
+        self.logger.debug("steer {}".format(course))
+
+        self.last_course = course
+        self.adapter.publish_steer(self.game.name, self._id, self._secret, course)  # noqa
 
     def bail(self):
         self.logger.debug("bail: {} ({})".format(self.game.name, self._id))
+
         self.adapter.publish_bail(self.game.name, self._id, self._secret)
-        self._alive = False
         self.__reset__()
 
     def destroy(self):
