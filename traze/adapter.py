@@ -29,7 +29,7 @@ __all__ = [
 ]
 
 
-class MqttTopic:
+class _MqttTopic:
 
     def __init__(self, client, name, *args):
         def topic_name(topicName, *args):
@@ -120,4 +120,4 @@ class TrazeMqttAdapter:
 
     @functools.lru_cache()  # singleton by parameter (for same arguments always return the same object)
     def __get_topic__(self, topic_name, *args):
-        return MqttTopic(self._client, topic_name, *args)
+        return _MqttTopic(self._client, topic_name, *args)

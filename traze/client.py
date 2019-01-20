@@ -28,14 +28,6 @@ class NotConnected(TimeoutError):
     pass
 
 
-class TileOutOfBoundsException(Exception):
-    pass
-
-
-class PlayerNotJoinedException(Exception):
-    pass
-
-
 class Base:
     def __init__(self, parent=None, name=None):
         self.logger = setup_custom_logger(self)
@@ -78,8 +70,8 @@ class Grid(Base, metaclass=ABCMeta):
 
     def __getitem__(self, coordinates):
         x, y = coordinates
-        if (x < 0 or x >= self.width or y < 0 or y >= self.height):
-            raise TileOutOfBoundsException
+        if x < 0 or x >= self.width or y < 0 or y >= self.height:
+            raise IndexError
         return self.tiles[x][y]
 
 
@@ -177,8 +169,8 @@ class Player(Base, metaclass=ABCMeta):
 
     def valid(self, x, y):
         try:
-            return (self.game.grid[x, y] == 0)
-        except TileOutOfBoundsException:
+            return self.game.grid[x, y] == 0
+        except IndexError:
             return False
 
     def steer(self, course):

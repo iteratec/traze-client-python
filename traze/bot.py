@@ -40,10 +40,7 @@ class Action(Enum):
 
     @classmethod
     def from_name(cls, name):
-        for action in Action:
-            if action.name == name:
-                return action
-        raise ValueError('{} is not a valid action name'.format(name))
+        return cls.__members__[name]
 
 
 class BotBase(Player, metaclass=ABCMeta):
