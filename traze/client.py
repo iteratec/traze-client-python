@@ -18,8 +18,9 @@
 """
 import time
 import copy
-from .log import setup_custom_logger
+from abc import ABCMeta, abstractmethod
 
+from .log import setup_custom_logger
 from .adapter import TrazeMqttAdapter
 
 
@@ -27,17 +28,9 @@ class NotConnected(TimeoutError):
     pass
 
 
-class TileOutOfBoundsException(Exception):
-    pass
-
-
-class PlayerNotJoinedException(Exception):
-    pass
-
-
 class Base:
     def __init__(self, parent=None, name=None):
-        self.logger = setup_custom_logger(name=type(self).__name__)
+        self.logger = setup_custom_logger(self)
 
         self.__adapter__ = None
         self._parent = parent
@@ -56,7 +49,7 @@ class Base:
         return None
 
 
-class Grid(Base):
+class Grid(Base, metaclass=ABCMeta):
     def __init__(self, game):
         super().__init__(game)
         self.width = 0
@@ -75,14 +68,15 @@ class Grid(Base):
     def game(self):
         return self._parent
 
-    def get_tile(self, x, y):
-        if (x < 0 or x >= self.width or y < 0 or y >= self.height):
-            raise TileOutOfBoundsException
+    def __getitem__(self, coordinates):
+        x, y = coordinates
+        if x < 0 or x >= self.width or y < 0 or y >= self.height:
+            raise IndexError
         return self.tiles[x][y]
 
 
-class Player(Base):
-    def __init__(self, game, name, on_update):
+class Player(Base, metaclass=ABCMeta):
+    def __init__(self, game, name):
         super().__init__(game, name=name)
         self.__reset__()
 
@@ -92,18 +86,20 @@ class Player(Base):
             self._x, self._y = payload['position']
 
             self.logger.info("Welcome '{}' ({}) at {}!\n".format(self.name, self._id, (self._x, self._y)))  # noqa
-            self._alive = True
-            on_update()  # very first call, if born
+            self._joined = True
 
-        def on_heartbeat(payload):
-            if not self.alive:
+        def on_grid(payload):
+            if not self._joined:
                 return
+
             self.game.grid.update_grid(payload)
 
-            bike_position = self.game.grid.bike_positions.get(self._id)
-            if bike_position:
-                self._x, self._y = bike_position
-                on_update()  # call if heartbeat
+            if self.last_course:
+                self._alive = True
+                self._x, self._y = self.game.grid.bike_positions.get(self._id, (self._x, self._y))
+
+            self.logger.debug("on_grid: position={}".format((self._x, self._y)))
+            self.on_update()
 
         def on_ticker(payload):
             if not self.alive:
@@ -115,17 +111,22 @@ class Player(Base):
 
             self.logger.debug("ticker: {}".format(payload))
 
-            if payload['casualty'] == self._id or payload['type'] == 'collision':  # noqa
+            if payload['casualty'] == self._id or payload['type'] == 'collision':
+                self._alive = False
+                self._joined = False
+                self.on_dead()
+
                 self.__reset__()
 
         self.adapter.on_player_info(self.game.name, on_join)
         self.adapter.on_ticker(self.game.name, on_ticker)
-        self.adapter.on_heartbeat(self.game.name, on_heartbeat)
+        self.adapter.on_grid(self.game.name, on_grid)
 
     def __reset__(self):
         self._id = None
         self._secret = None
         self._alive = False
+        self._joined = False
         self.last_course = None
         self._x, self._y = [-1, -1]
 
@@ -142,6 +143,14 @@ class Player(Base):
             time.sleep(0.5)
         raise NotConnected()
 
+    @abstractmethod
+    def on_update(self):
+        pass
+
+    @abstractmethod
+    def on_dead(self):
+        pass
+
     @property
     def game(self):
         return self._parent
@@ -152,34 +161,31 @@ class Player(Base):
 
     @property
     def x(self):
-        if self.alive:
-            return self._x
-        else:
-            raise PlayerNotJoinedException
+        return self._x
 
     @property
     def y(self):
-        if self.alive:
-            return self._y
-        else:
-            raise PlayerNotJoinedException
+        return self._y
 
     def valid(self, x, y):
         try:
-            return (self.game.grid.get_tile(x, y) == 0)
-        except TileOutOfBoundsException:
+            return self.game.grid[x, y] == 0
+        except IndexError:
             return False
 
     def steer(self, course):
-        if course != self.last_course:
-            self.last_course = course
-            self.logger.debug("steer {}".format(course))
-            self.adapter.publish_steer(self.game.name, self._id, self._secret, course)  # noqa
+        if course == self.last_course:
+            return
+
+        self.logger.debug("steer {}".format(course))
+
+        self.last_course = course
+        self.adapter.publish_steer(self.game.name, self._id, self._secret, course)  # noqa
 
     def bail(self):
         self.logger.debug("bail: {} ({})".format(self.game.name, self._id))
+
         self.adapter.publish_bail(self.game.name, self._id, self._secret)
-        self._alive = False
         self.__reset__()
 
     def destroy(self):
@@ -192,7 +198,7 @@ class Player(Base):
         return "{}(name={}, id={}, x={}, y={})".format(self.__class__.__name__, self.name, self._id, self._x, self._y)  # noqa
 
 
-class Game(Base):
+class Game(Base, metaclass=ABCMeta):
     def __init__(self, world, name):
         super().__init__(world, name=name)
         self._grid = Grid(self)
@@ -213,20 +219,18 @@ class World(Base):
         self.__adapter__ = adapter if adapter else TrazeMqttAdapter()
         self.__games__ = dict()
 
-        def add_game(name):
-            if name not in self.__games__:
-                self.__games__[name] = Game(self, name)
-
-        def game_info(payload):
+        def on_game_info(payload):
             for game in payload:
-                add_game(game['name'])
+                name = game['name']
+                if name not in self.__games__:
+                    self.__games__[name] = Game(self, name)
 
-        self.adapter.on_game_info(game_info)
+        self.adapter.on_game_info(on_game_info)
 
     @property
     def games(self):
         for _ in range(30):
             if self.__games__:
-                return list(self.__games__.values())
+                return tuple(self.__games__.values())
             time.sleep(0.5)
         raise NotConnected()

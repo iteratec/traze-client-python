@@ -40,23 +40,13 @@ class Action(Enum):
 
     @classmethod
     def from_name(cls, name):
-        for action in Action:
-            if action.name == name:
-                return action
-        raise ValueError('{} is not a valid action name'.format(name))
+        return cls.__members__[name]
 
 
 class BotBase(Player, metaclass=ABCMeta):
-    def __init__(self, game, name=None):
-        def on_update():
-            next_action = None
-            actions = self.actions
-            if actions:
-                next_action = self.next_action(actions)
-            if next_action:
-                self.steer(next_action)
 
-        super().__init__(game, name, on_update)
+    def __init__(self, game, name=None):
+        super().__init__(game, name)
 
     def play(self, count=1, suppress_server_timeout=False):
         for i in range(1, count + 1):
@@ -76,6 +66,20 @@ class BotBase(Player, metaclass=ABCMeta):
 
         self.destroy()
 
+    def on_update(self):
+        self.logger.debug("on_update: {}".format((self.x, self.y)))
+
+        next_action = None
+        actions = self.actions
+        if actions:
+            next_action = self.next_action(actions)
+            self.steer(next_action)
+
+    def on_dead(self):
+        self.logger.debug("on_dead: {}".format((self.x, self.y)))
+
+        return
+
     @property
     def actions(self):
         valid_actions = set()
@@ -83,6 +87,7 @@ class BotBase(Player, metaclass=ABCMeta):
             if self.valid(self.x + action.dX, self.y + action.dY):
                 valid_actions.add(action)
 
+        self.logger.debug("valid_actions: {}".format(valid_actions))
         return tuple(valid_actions)
 
     @abstractmethod
