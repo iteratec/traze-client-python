@@ -26,11 +26,11 @@ def __readme__():
 
 setup(
     name='traze-client',
-    version='1.3',
+    version='1.3.0',
     author="Danny Lade",
     author_email="dannylade@gmail.com",
     description=("A client for the simple tron-like multi client online game called 'Traze' which is using MQTT for communication."),  # noqa
-    license="GNU GPLv3",
+    license='GPLv3',
     keywords="traze client game tron-like",
     url="https://github.com/iteratec/traze-client-python",
     long_description=__readme__(),
@@ -50,9 +50,11 @@ setup(
         # Development Status :: 5 - Production/Stable
         # Development Status :: 6 - Mature
         # Development Status :: 7 - Inactive
-        "Development Status :: 1 - Planning",
+        "Development Status :: 5 - Production/Stable",
         "Topic :: Games/Entertainment :: Simulation",
         "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     ],
 )
