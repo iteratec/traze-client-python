@@ -30,10 +30,9 @@ setup(
     author="Danny Lade",
     author_email="dannylade@gmail.com",
     description=("A client for the simple tron-like multi client online game called 'Traze' which is using MQTT for communication."),  # noqa
-    license="Apache",
+    license="GNU GPLv3",
     keywords="traze client game tron-like",
     url="https://github.com/iteratec/traze-client-python",
-    location="https://github.com/iteratec/traze-client-python",
     long_description=__readme__(),
 
     packages=find_packages('traze'),
@@ -54,6 +53,6 @@ setup(
         "Development Status :: 1 - Planning",
         "Topic :: Games/Entertainment :: Simulation",
         "Programming Language :: Python :: 3.5",
-        "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",  # noqa
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     ],
 )

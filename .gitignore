@@ -3,5 +3,6 @@ __pycache__
 .vscode/
 .spyproject/
 .idea/
+dist/
 
 *.egg-info/
