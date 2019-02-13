@@ -26,14 +26,19 @@ def __readme__():
 
 setup(
     name='traze-client',
-    version='1.3.0',
+    version='1.3.1',
     author="Danny Lade",
     author_email="dannylade@gmail.com",
     description=("A client for the simple tron-like multi client online game called 'Traze' which is using MQTT for communication."),  # noqa
     license='GPLv3',
     keywords="traze client game tron-like",
-    url="https://github.com/iteratec/traze-client-python",
+    url="https://traze.iteratec.de/",
+    project_urls={
+        "Sources": "https://github.com/iteratec/traze-client-python",
+	"Example Bots": "https://github.com/iteratec/traze-bots-python/tree/master",
+    },
     long_description=__readme__(),
+    long_description_content_type='text/markdown',
 
     packages=find_packages('traze'),
 
