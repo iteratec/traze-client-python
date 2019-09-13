@@ -120,53 +120,37 @@ class Grid(Base, metaclass=ABCMeta):
 
 
 class Spectator(Base, metaclass=ABCMeta):
-    def __init__(self, game, name):
-        super().__init__(game, name=name)
-        self._alive = False
+    def __init__(self, game):
+        super().__init__(game, name=None)
 
         def on_ticker(payload):
-            self._alive = True
-            
             self.logger.debug("ticker: type={},casualty={},fragger={}".format(
                     payload['type'],payload['casualty'],payload['fragger']))
 
         def on_players(payload):
-            self._alive = True
-            
             for player_payload in payload:
                 id = player_payload['id']
                 bike = self.game.bike(id) or Bike(self.game, -1)
                 self.logger.debug("player: id={}, name={}, frags={}, owned={}, trail_size={}".format(
                         id,player_payload['name'],player_payload['frags'],player_payload['owned'],len(bike.trail)))
-            
+
         self.adapter.on_ticker(self.game.name, on_ticker)
         self.adapter.on_players(self.game.name, on_players)
-        
-    def join(self):
-        if self.alive:
-            self.logger.info("Spectator '{}' is already alive!".format(self.name))
-            return
 
-        # wait for spectator
-        for _ in range(30):
-            if self.alive:
-                return self
-            time.sleep(0.5)
-        raise NotConnected()
+    def watch(self, timeout=3600):
+        time.sleep(timeout)
+
+        self.destroy()
 
     @property
     def game(self):
         return self._parent
 
-    @property
-    def alive(self):
-        return self._alive
-
     def destroy(self):
         self.adapter.disconnect()
 
     def __str__(self):
-        return "{}(name={})".format(self.__class__.__name__)  # noqa
+        return "{}()".format(self.__class__.__name__)  # noqa
 
 
 class Player(Base, metaclass=ABCMeta):
@@ -186,12 +170,10 @@ class Player(Base, metaclass=ABCMeta):
             if not self._joined:
                 return
 
-            if self.last_course:
-                self._alive = True
-                
+            # will be set with first steer command
+            if self.game.bike(self._id):
                 bike = self.game.bike(self._id)
-                if bike:
-                    self._x, self._y = (bike.x, bike.y)
+                self._x, self._y = (bike.x, bike.y)
 
             self.logger.debug("on_grid: position={}".format((self._x, self._y)))
             self.on_update()
@@ -207,7 +189,6 @@ class Player(Base, metaclass=ABCMeta):
             self.logger.debug("ticker: {}".format(payload))
 
             if payload['casualty'] == self._id or payload['type'] == 'collision':
-                self._alive = False
                 self._joined = False
                 self.on_dead()
 
@@ -220,9 +201,8 @@ class Player(Base, metaclass=ABCMeta):
     def __reset__(self):
         self._id = None
         self._secret = None
-        self._alive = False
         self._joined = False
-        self.last_course = None
+        self._last_course = None
         self._x, self._y = [-1, -1]
 
     def join(self):
@@ -252,7 +232,7 @@ class Player(Base, metaclass=ABCMeta):
 
     @property
     def alive(self):
-        return self._alive
+        return self.game.bike(self._id) != None
 
     @property
     def x(self):
@@ -269,12 +249,12 @@ class Player(Base, metaclass=ABCMeta):
             return False
 
     def steer(self, course):
-        if course == self.last_course:
+        if self._last_course == course:
             return
-
+        
         self.logger.debug("steer {}".format(course))
 
-        self.last_course = course
+        self._last_course = course
         self.adapter.publish_steer(self.game.name, self._id, self._secret, course)  # noqa
 
     def bail(self):
