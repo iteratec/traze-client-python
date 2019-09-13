@@ -49,20 +49,64 @@ class Base:
         return None
 
 
+class Bike(Base, metaclass=ABCMeta):
+    def __init__(self, game, id):
+        super().__init__(game)        
+        self.id = id
+        self.x = -1
+        self.y = -1
+        self.direction = None
+        self.trail = []
+
+    def update(self, payload):
+        self.x = payload['currentLocation'][0]
+        self.y = payload['currentLocation'][1]
+        self.direction = payload['direction']
+        self.trail = copy.deepcopy(payload['trail'])
+
+    @property
+    def game(self):
+        return self._parent
+
+            
 class Grid(Base, metaclass=ABCMeta):
     def __init__(self, game):
         super().__init__(game)
         self.width = 0
         self.height = 0
         self.tiles = [[]]
-        self.bike_positions = {}
+        self._bikes = {}
+        self._removed_bikes = set()
 
-    def update_grid(self, payload):
-        self.width = payload['width']
-        self.height = payload['height']
-        self.tiles = copy.deepcopy(payload['tiles'])
-        for bike in payload['bikes']:
-            self.bike_positions[bike['playerId']] = tuple(bike['currentLocation'])  # noqa
+        def on_grid(payload):
+            self.width = payload['width']
+            self.height = payload['height']
+            self.tiles = copy.deepcopy(payload['tiles'])
+
+            for bike_payload in payload['bikes']:
+                id = bike_payload['playerId']
+                if id in self._removed_bikes:
+                    if self._bikes.pop(id, None):
+                        self.logger.debug("Removed bike: {}".format(id))
+                    continue
+                
+                bike = self._bikes.get(id, Bike(self.game, id))
+                bike.update(bike_payload)
+                
+                self._bikes[id] = bike
+
+        def on_ticker(payload):
+            self._removed_bikes.add(payload['casualty'])
+
+        self.adapter.on_grid(self.game.name, on_grid)
+        self.adapter.on_ticker(self.game.name, on_ticker)
+
+    @property
+    def bikes(self):
+        return self._bikes.values()
+
+    def bike(self, id):
+        return self._bikes.get(id, None)
 
     @property
     def game(self):
@@ -80,21 +124,24 @@ class Spectator(Base, metaclass=ABCMeta):
         super().__init__(game, name=name)
         self._alive = False
 
-        def on_grid(payload):
-            self._alive = True
-            
-            self.game.grid.update_grid(payload)
-            
-            self.logger.debug("bikes: {}".format(payload['bikes']))
-
         def on_ticker(payload):
             self._alive = True
             
-            self.logger.debug("ticker: {}".format(payload))
+            self.logger.debug("ticker: type={},casualty={},fragger={}".format(
+                    payload['type'],payload['casualty'],payload['fragger']))
 
+        def on_players(payload):
+            self._alive = True
+            
+            for player_payload in payload:
+                id = player_payload['id']
+                bike = self.game.bike(id) or Bike(self.game, -1)
+                self.logger.debug("player: id={}, name={}, frags={}, owned={}, trail_size={}".format(
+                        id,player_payload['name'],player_payload['frags'],player_payload['owned'],len(bike.trail)))
+            
         self.adapter.on_ticker(self.game.name, on_ticker)
-        self.adapter.on_grid(self.game.name, on_grid)
-
+        self.adapter.on_players(self.game.name, on_players)
+        
     def join(self):
         if self.alive:
             self.logger.info("Spectator '{}' is already alive!".format(self.name))
@@ -139,11 +186,12 @@ class Player(Base, metaclass=ABCMeta):
             if not self._joined:
                 return
 
-            self.game.grid.update_grid(payload)
-
             if self.last_course:
                 self._alive = True
-                self._x, self._y = self.game.grid.bike_positions.get(self._id, (self._x, self._y))
+                
+                bike = self.game.bike(self._id)
+                if bike:
+                    self._x, self._y = (bike.x, bike.y)
 
             self.logger.debug("on_grid: position={}".format((self._x, self._y)))
             self.on_update()
@@ -257,6 +305,13 @@ class Game(Base, metaclass=ABCMeta):
     @property
     def grid(self):
         return self._grid
+
+    @property
+    def bikes(self):
+        return self._grid.bikes
+
+    def bike(self, id):
+        return self._grid.bike(id)
 
 
 class World(Base):
