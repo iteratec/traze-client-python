@@ -79,27 +79,30 @@ class Grid(Base, metaclass=ABCMeta):
         self._removed_bikes = set()
 
         def on_grid(payload):
-            self.width = payload['width']
-            self.height = payload['height']
-            self.tiles = copy.deepcopy(payload['tiles'])
-
-            for bike_payload in payload['bikes']:
-                id = bike_payload['playerId']
-                if id in self._removed_bikes:
-                    if self._bikes.pop(id, None):
-                        self.logger.debug("Removed bike: {}".format(id))
-                    continue
-                
-                bike = self._bikes.get(id, Bike(self.game, id))
-                bike.update(bike_payload)
-                
-                self._bikes[id] = bike
+            self.update(payload)
 
         def on_ticker(payload):
             self._removed_bikes.add(payload['casualty'])
 
         self.adapter.on_grid(self.game.name, on_grid)
         self.adapter.on_ticker(self.game.name, on_ticker)
+
+    def update(self, payload):
+        self.width = payload['width']
+        self.height = payload['height']
+        self.tiles = copy.deepcopy(payload['tiles'])
+
+        for bike_payload in payload['bikes']:
+            id = bike_payload['playerId']
+            if id in self._removed_bikes:
+                if self._bikes.pop(id, None):
+                    self.logger.debug("Removed bike: {}".format(id))
+                continue
+            
+            bike = self._bikes.get(id, Bike(self.game, id))
+            bike.update(bike_payload)
+            
+            self._bikes[id] = bike
 
     @property
     def bikes(self):
@@ -170,6 +173,8 @@ class Player(Base, metaclass=ABCMeta):
             if not self._joined:
                 return
 
+            self.game._grid.update(payload)
+            
             # will be set with first steer command
             if self.game.bike(self._id):
                 bike = self.game.bike(self._id)
