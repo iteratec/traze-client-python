@@ -26,7 +26,7 @@ def __readme__():
 
 setup(
     name='traze-client',
-    version='1.3.1',
+    version='1.3.2',
     author="Danny Lade",
     author_email="dannylade@gmail.com",
     description=("A client for the simple tron-like multi client online game called 'Traze' which is using MQTT for communication."),  # noqa

@@ -75,6 +75,53 @@ class Grid(Base, metaclass=ABCMeta):
         return self.tiles[x][y]
 
 
+class Spectator(Base, metaclass=ABCMeta):
+    def __init__(self, game, name):
+        super().__init__(game, name=name)
+        self._alive = False
+
+        def on_grid(payload):
+            self._alive = True
+            
+            self.game.grid.update_grid(payload)
+            
+            self.logger.debug("bikes: {}".format(payload['bikes']))
+
+        def on_ticker(payload):
+            self._alive = True
+            
+            self.logger.debug("ticker: {}".format(payload))
+
+        self.adapter.on_ticker(self.game.name, on_ticker)
+        self.adapter.on_grid(self.game.name, on_grid)
+
+    def join(self):
+        if self.alive:
+            self.logger.info("Spectator '{}' is already alive!".format(self.name))
+            return
+
+        # wait for spectator
+        for _ in range(30):
+            if self.alive:
+                return self
+            time.sleep(0.5)
+        raise NotConnected()
+
+    @property
+    def game(self):
+        return self._parent
+
+    @property
+    def alive(self):
+        return self._alive
+
+    def destroy(self):
+        self.adapter.disconnect()
+
+    def __str__(self):
+        return "{}(name={})".format(self.__class__.__name__)  # noqa
+
+
 class Player(Base, metaclass=ABCMeta):
     def __init__(self, game, name):
         super().__init__(game, name=name)
